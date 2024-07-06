@@ -9,6 +9,40 @@
         sliderValue.value = parseFloat(target.value)
     }
 
+    // let latitude = ref<number>(0);
+    // function setLatitude(e:Event) {
+    //     const lat = parseFloat((e.target as HTMLInputElement).value);
+    //     if (!isNaN(lat)) {
+    //         latitude.value = clamp(lat, -90, 90);
+    //     }
+    //     console.log(latitude.value)
+    // }
+    // let longitude = ref<number>(0);
+
+
+
+    // form values.
+    const formDefaults = {
+        latitude:"",
+        longitude:""
+    }
+
+    const state = reactive(formDefaults);
+    const rules = computed<Record<keyof typeof formDefaults, any>>(() => ({
+        latitude: {
+            numeric,
+            minValue:minValue(-90),
+            maxValue:maxValue(90)
+        },
+        longitude: {
+            numeric,
+            minValue:minValue(-180),
+            maxValue:maxValue(180)
+        }
+    }))
+
+    const v$ = useVuelidate(rules, state)
+
 
 </script>
 
@@ -22,10 +56,33 @@
         <OrbitControls
             :enable-damping="false"
             :rotate-speed="0.5"
+            :enable-pan="false"
         />
     </TresCanvas>
     <div class="sidebar">
-        <input 
+
+
+        <!-- Position -->
+        <h2>Coordinates</h2>
+            <!-- town selector -->
+            <div class="horizontal_settings">
+                <div class="setting">
+                    <label>Latitude</label>
+                    <input class="small_input" v-model.lazy="v$.latitude.$model">
+                    <div class="error" v-if="v$.latitude.$invalid">{{ v$.latitude.$errors[0].$message}}</div>
+                </div>
+                <div class="setting">
+                    <label>Longitude</label>
+                    <input class="small_input" v-model.lazy="v$.longitude.$model">
+                    <div class="error" v-if="v$.longitude.$invalid">{{ v$.longitude.$errors[0].$message}}</div>
+                </div>
+            </div>
+
+
+
+
+
+        <!-- <input 
             type="range" 
             min="0.01" 
             max="2"
@@ -35,33 +92,79 @@
             id="myRange"
             @input="sliderChange"
         >
-        <p style="color: white">{{ sliderValue }}</p>
+        <p style="color: white">{{ sliderValue }}</p> -->
     </div>
 </template>
 
 
 <script lang="ts">
-    import { defineComponent, ref } from 'vue'
+    import { computed, defineComponent, reactive, ref } from 'vue'
+import { clamp } from 'three/src/math/MathUtils';
+import { maxValue, minValue, numeric, required } from '@vuelidate/validators';
+import useVuelidate from '@vuelidate/core';
+import { MinEquation } from 'three';
     export default defineComponent({
         // props: {
 
         // },
         components: {
-        }
+        },
+        
     })
 </script>
 
 <style scoped>
     .sidebar {
-        width: 300px;
+        width: 30%;
         background: rgba(39, 39, 39, 0.95);
-        opacity: 1;
         position: absolute;
         left: 0;
         top:0;
         height: 100%;
         padding: 20px;
     }
+
+    .sidebar h2 {
+        /* color:white; */
+        font-size: 15pt;
+        background-color: brown
+    }
+
+    .horizontal_settings {
+        flex-direction: row;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        row-gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .horizontal_settings .setting {
+        flex:1
+    }
+
+    .setting label {
+        display: block;
+        /* font-weight: bold; */
+        margin-bottom: 3px;
+    }
+
+    .setting .error {
+        min-width: 100%;
+        width: 0;
+        font-size: 9pt;
+        margin-top: 2px;
+        color: yellow;
+
+    }
+
+    .small_input {
+        /* width: none; */
+        width: 100%;
+        min-width: 80px;
+        max-width: 100px;
+    }
+
 
     .slider {
         width: 100%;

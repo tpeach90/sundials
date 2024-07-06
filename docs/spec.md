@@ -7,7 +7,7 @@
     - Longitude (S)
     - Time zone (S)
 - Type of sundial
-    - Point sundial (C)
+    - Point sundial/nodus-based sundial (C)
     - Sundial with style (M)
 - Gnomon/style
     - Aligned with celestial poles (M)
@@ -17,7 +17,8 @@
 - Angle of plane
     - Horizontal (M)
     - Vertical (S)
-    - Custom angle (C)
+    - Parallel to style/polar sundial (C)
+    - Custom angle/reclining/inclining (C)
     - Curved (CC)
     - Upload 3D object (CC)
 - Time
@@ -30,6 +31,7 @@
     - 3D (M)
         - Sun in sky (C)
         - Night/day with nice lighting (C)
+        - Time and date displayed on screen
     - 2D (C)
     - Printable (C)
 - Interactive sliders
