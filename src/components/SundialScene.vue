@@ -19,12 +19,18 @@
     // }
     // let longitude = ref<number>(0);
 
+    /** 0 to 24 */
+    let time = ref<number>(12);
+    /** 0 to 364 (integer) */
+    let day = ref<number>(123);
+
+
 
 
     // form values.
     const formDefaults = {
         latitude:"",
-        longitude:""
+        longitude:"",
     }
 
     const state = reactive(formDefaults);
@@ -44,23 +50,50 @@
     const v$ = useVuelidate(rules, state)
 
 
+
+
+    let isSunUp = computed(() => time.value > 6 && time.value < 18);
+    let statusTextColor = computed(() => isSunUp.value ? "black" : "white")
+    
+    let timeText = computed(() => {
+        const timeObj = new Date();
+        timeObj.setHours(time.value);
+        timeObj.setMinutes((time.value % 1)*60)
+        return timeObj.toLocaleTimeString(undefined, {hour:"numeric", minute: "numeric"})
+    })
+
+    let dateText = computed(() => {
+        // add date to an arbitrary non-leap year
+        let dateObj = new Date(Date.parse("2001") + day.value * 24 * 60 * 60 * 1000);
+        return dateObj.toLocaleDateString(undefined, {month:"long", day:'numeric'})
+    })
+
 </script>
 
 <template>
-    <TresCanvas clear-color="#FFFF00" window-size>
+    <TresCanvas clear-color="#87CEEB" shadows :shadowMapType="BasicShadowMap" window-size>
         <TresPerspectiveCamera  />
-        <TresMesh>
-            <TresBoxGeometry :args="[sliderValue, 1, 1]" />
-            <TresMeshNormalMaterial  />
-        </TresMesh>
+        <SundialObject/>
+
+        <!-- positional light points at :target="[0,0,0]" by default -->
+        <TresDirectionalLight
+            :position="[50,70,10]"
+            :intensity="1"
+            :shadow-mapSize-width="2048"
+            :shadow-mapSize-height="2048"
+            cast-shadow
+        />
+        <TresAmbientLight color="#AAAAAA" />
         <OrbitControls
             :enable-damping="false"
             :rotate-speed="0.5"
             :enable-pan="false"
         />
     </TresCanvas>
-    <div class="sidebar">
 
+
+    
+    <div class="sidebar">
 
         <!-- Position -->
         <h2>Coordinates</h2>
@@ -94,15 +127,26 @@
         >
         <p style="color: white">{{ sliderValue }}</p> -->
     </div>
+
+
+
+    <!-- status overlay -->
+    <div class="status">
+        <div class="time_display">{{timeText}}</div>
+        <div class="day_display">{{dateText}}</div>
+
+    </div>
+    
 </template>
 
 
 <script lang="ts">
     import { computed, defineComponent, reactive, ref } from 'vue'
-import { clamp } from 'three/src/math/MathUtils';
-import { maxValue, minValue, numeric, required } from '@vuelidate/validators';
-import useVuelidate from '@vuelidate/core';
-import { MinEquation } from 'three';
+    import SundialObject from "./SundialObject.vue";
+    import { clamp } from 'three/src/math/MathUtils';
+    import { integer, maxValue, minValue, numeric, required } from '@vuelidate/validators';
+    import useVuelidate from '@vuelidate/core';
+    import { BasicShadowMap, DirectionalLightShadow, MinEquation } from 'three';
     export default defineComponent({
         // props: {
 
@@ -174,5 +218,25 @@ import { MinEquation } from 'three';
 
     .slider:hover {
         opacity: 1; /* Fully shown on mouse-over */
+    }
+
+
+    .status {
+        position: absolute;
+        bottom:0;
+        right:0;
+        font-family: monospace;
+        margin-right: 20px;
+        margin-bottom: 20px;
+        text-align: left;
+        color:v-bind("statusTextColor")
+    }
+
+    .time_display {
+        font-size: 40pt;
+    }
+
+    .day_display {
+        font-size: 12pt;
     }
 </style>
