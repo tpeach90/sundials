@@ -16,6 +16,7 @@
                 :bevel-enabled="false"
                 :height="0.05"
                 :cast-shadow="castShadow"
+                :receive-shadow="receiveShadow"
             >
                 {{ text }}
                 <TresMeshPhongMaterial
@@ -40,6 +41,11 @@
                 type: Array as PropType<number[]>, 
             },
             castShadow: {
+                required: false,
+                default: false,
+                type: Boolean as PropType<boolean>
+            },
+            receiveShadow: {
                 required: false,
                 default: false,
                 type: Boolean as PropType<boolean>
