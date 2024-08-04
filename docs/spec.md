@@ -23,8 +23,9 @@
     - Upload 3D object (CC)
 - Time
     - Sundial time
-        - Ignoring time zone/sun due south at midday (M)
-        - Adjusting for time zone (S)
+        - Ignoring time zone/sun due south at midday (Apparent solar time) (M)
+        - Mean solar time
+        - Adjusting for time zone (standard time) (S)
         - Yearly variation for point sundial/height in the sky (C)
     - Eqn of time adjustment for point sundial (C)
 - Visualizations/plots

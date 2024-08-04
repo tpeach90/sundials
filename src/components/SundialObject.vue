@@ -18,7 +18,7 @@ import { TresCanvas } from '@tresjs/core';
         <SundialLetter text="W" :position="[-2, 0.1, 0]" cast-shadow receive-shadow />
 
         <!-- Style/gnomon -->
-        <TresMesh :position="[0,1,0]" cast-shadow receive-shadow>
+        <TresMesh :position="[0,1,0]" :rotation="[-gnomonRotation, 0, 0]" cast-shadow receive-shadow>
             <TresCylinderGeometry :args="[0.1, 0.1, 2]" />
             <TresMeshPhongMaterial color="#b7b7b7" />
         </TresMesh>
@@ -28,11 +28,18 @@ import { TresCanvas } from '@tresjs/core';
 
 
 <script lang="ts">
-    import { defineComponent } from 'vue'
+    import { PropType, defineComponent } from 'vue'
     import SundialLetter from './SundialLetter.vue';
     export default defineComponent({
         components: {
             SundialLetter
+        },
+        props:{
+            gnomonRotation: {
+                required: false,
+                default:0,
+                type: Number as PropType<number>
+            },
         }
     })
 </script>
