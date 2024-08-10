@@ -92,6 +92,25 @@
         }
     }, {immediate:true})
 
+    // set the latitude and longitude when the user clicks on the map.
+    let mapImage = ref<HTMLImageElement>();
+    let mapImageIsBeingClicked = ref(false);
+    function mapImageMouseMove(e:MouseEvent) {
+        if (mapImage.value && mapImageIsBeingClicked.value) {
+            const longitude = e.offsetX / mapImage.value.width * 360 - 180;
+            const latitude = 90 - e.offsetY / mapImage.value.height * 180;
+            formState.longitude = longitude.toFixed(1);
+            formState.latitude = latitude.toFixed(1);
+        }
+    }
+    function mapImageStartClicking() {
+        mapImageIsBeingClicked.value = true;
+    }
+    onMounted(() => {
+        window.addEventListener("mouseup", () => {
+            mapImageIsBeingClicked.value = false;
+        })
+    })
     /** convert local time to UTC +0 */
     const time = computed(() => (((localTime.value - timeZone.value) % 1440) + 1440) % 1440)
 
@@ -239,7 +258,7 @@
 <template>
     <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" window-size>
         <TresPerspectiveCamera />
-        <SundialObject :gnomon-rotation="gnomonRotation" :origin="sundialOrigin"/>
+        <SundialObject :gnomon-rotation="gnomonRotation" :origin="sundialOrigin" />
         <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
         <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
             <Line2 :points="hourLine.points ?? [[0,0,0], [0,0,0]]" :line-width="0.002" />
@@ -277,6 +296,26 @@
                 <div class="error" v-if="v$.timeZone.$dirty && v$.timeZone.$invalid">{{
                     v$.timeZone.$errors[0].$message }}</div>
             </div>
+        </div>
+
+        <div>
+            <div style="display: grid; grid-template-columns: min-content auto;">
+                <input style="grid-row: 1; grid-column: 1; height:100%" type="range" min="-90" max="90" step="-0.1"
+                    class="slider" orient="vertical" v-model="v$.latitude.$model">
+                <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
+                <div style="position:relative">
+                    <img src="../assets/world-map-cropped.png"
+                        alt="An outline world map, on which the user can click to set the latitude and longitude."
+                        style="grid-row: 1; grid-column: 2; width:100%; aspect-ratio: 2 / 1; user-select: none;"
+                        draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking" ref="mapImage">
+                    <div id="markerPoint"
+                        :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`"></div>
+                </div>
+
+                <input style="grid-row: 2; grid-column: 2" type="range" min="-180" max="180" step="0.1" class="slider"
+                    v-model="v$.longitude.$model">
+            </div>
+
         </div>
     </div>
 
@@ -344,6 +383,7 @@ import { computeShadowDirection, computeSunCoords, computeSunHorizontalCoords } 
         top:0;
         height: 100%;
         padding: 20px;
+        overflow-x: scroll;
     }
 
     .sidebar h2 {
@@ -429,5 +469,30 @@ import { computeShadowDirection, computeSunCoords, computeSunHorizontalCoords } 
 
     .subtitle {
         font-size: 12pt;
+    }
+
+    input[type=range][orient=vertical] {
+        writing-mode: vertical-lr;
+        direction: rtl;
+        appearance: slider-vertical;
+        width: 16px;
+        vertical-align: bottom;
+    }
+
+    #coordBox {
+        background-color: white;
+        width: 100%
+    }
+
+    #markerPoint {
+        width: 10px;
+        height: 10px;
+        transform: translate(-5px, -5px);
+        border-radius: 5px;
+        background-color: red;
+        grid-row: 1;
+        grid-column: 2;
+        position: absolute;
+        pointer-events: none;
     }
 </style>
