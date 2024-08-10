@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import { TresCanvas } from '@tresjs/core';
-    import { OrbitControls } from '@tresjs/cientos'
+    import { Line2, OrbitControls } from '@tresjs/cientos'
     import { onClickOutside } from '@vueuse/core'
     import interpolate from "color-interpolate";
 
@@ -13,7 +13,7 @@
             isEditingTime.value = true;
             timeEntryValue.value = computeTimeText(localTime.value);
 
-            /** @todo this doesn't work because it is not yet mounted */
+            /** @todo this doesn't work because it is not yet mounted (?) */
             //timeEntryBox.value?.focus();
         }
     }
@@ -25,26 +25,11 @@
     }
     onClickOutside(timeEntryBox, hideTimeEntryBox)
 
+    // const perspectiveCamera = ref();
+    // onMounted(() => {
+    //     perspectiveCamera.value.position = [10, 10, 10];
+    // })
 
-
-
-    
-    // let sliderValue = ref<number>(1);
-
-    // function sliderChange(e: Event) {
-    //     const target = e.target as HTMLInputElement;
-    //     sliderValue.value = parseFloat(target.value)
-    // }
-
-    // let latitude = ref<number>(0);
-    // function setLatitude(e:Event) {
-    //     const lat = parseFloat((e.target as HTMLInputElement).value);
-    //     if (!isNaN(lat)) {
-    //         latitude.value = clamp(lat, -90, 90);
-    //     }
-    //     console.log(latitude.value)
-    // }
-    // let longitude = ref<number>(0);
 
     /** 0 to 24*60 */
     let localTime = ref<number>(12*60);
@@ -52,18 +37,15 @@
     let day = ref<number>(100);
 
 
-
+    const sundialOrigin = [0, -1, 0];
+    const sundialNormal = [0, 1, 0];
 
     // form values.
     const formDefaults = {
         latitude:"52.48",
         longitude:"0.12",
-        timeZone:"+1:00"
+        timeZone:"+0:00"
     }
-    // const formDefaults = {
-    //     latitude: "",
-    //     longitude: ""
-    // }
 
     const timeZoneRegex = /^\s*([+-]?)\s*((?:0?[0-9])|1[0-9])(?::((?:0[0-9])|[1-5][0-9]))?\s*$/;
 
@@ -103,7 +85,10 @@
     watch(() => formState.timeZone, newVal => {
         const result = newVal.match(timeZoneRegex);
         if (result) {
-            timeZone.value = (result[1] == "-" ? -1 : 1) * (Number.parseInt(result[2]) * 60 + Number.parseInt(result[3] ?? 0))
+            const newValInt = (result[1] == "-" ? -1 : 1) * (Number.parseInt(result[2]) * 60 + Number.parseInt(result[3] ?? 0));
+            // change the local time so that the global time remains consistent
+            localTime.value = (((localTime.value + newValInt - timeZone.value) % 1440) + 1440) % 1440
+            timeZone.value = newValInt;
         }
     }, {immediate:true})
 
@@ -111,79 +96,8 @@
     const time = computed(() => (((localTime.value - timeZone.value) % 1440) + 1440) % 1440)
 
 
-
-    // const longitude = computed(() => {
-    //     return Number.parseFloat(v$.value.longitude.);
-    //     // if (v$.value.longitude.$error) return 0;
-    //     // const l = Number.parseFloat(formState.longitude);
-    //     // return isNaN(l) ? 0 : l;
-    // });
-    // const latitude = computed(() => {
-    //     return Number.parseFloat(formState.latitude);
-
-    //     // if (v$.value.latitude.$error) return 0;
-    //     // const l = Number.parseFloat(formState.latitude);
-    //     // return isNaN(l) ? 0 : l;
-    // }, );
-
-
-
-    /**
-     * Compute the sun's position in horizontal coordinates, using the current date, time, latitude, and longitude.
-     */
-    function computeSunHorizontalCoords(day: number, time: number, latitude: number, longitude: number) {
-        // using guide from here: https://en.wikipedia.org/wiki/Position_of_the_Sun
-
-        const longRad = longitude * Math.PI/180;
-        const latRad = latitude * Math.PI/180;
-
-        // pretend the year is 2023 (non-leap year)
-        // calculate ecliptic coordinates
-        const n = 8400.5 + day + time/1440;
-        const L = (4.89495042 + 0.017202792 * n) % (2 * Math.PI);
-        const g = (6.240040768 + 0.01720197 * n) % (2 * Math.PI);
-        const lambda = L + 0.033423055 * Math.sin(g) + 0.000349066 * Math.sin(2 * g);
-        const epsilon = 0.409087723 - 4e-7*Math.PI/180*n;
-
-
-        // convert to equitorial coords
-        const rightAsc = Math.atan2(Math.cos(epsilon) * Math.sin(lambda), Math.cos(lambda));
-        const declination = Math.asin(Math.sin(epsilon) * Math.sin(lambda));
-
-
-        // compute hour angle
-        // https://aa.usno.navy.mil/faq/GAST
-        // /** Greenwich mean sidereal time (converted to hour angle) */
-        // const GMST = ((18.697375 + 24.065709824279 * n) % 24) * Math.PI/12;
-        
-        // earth rotation angle
-        // const ERA = 2 * Math.PI * ((0.7790572732640 + 1.00273781191135448 * n) % 1);
-        const ERA = 2 * Math.PI * ((0.7790572732640 + 1.002737811911355 * n) % 1);
-
-        /** local mean sidereal time */
-        const LMST = ERA + longRad;
-        /** hour angle */
-        const h = LMST - rightAsc;
-
-        // convert to horizontal coords
-        // https://en.wikipedia.org/wiki/Astronomical_coordinate_systems
-        const azimuth = -Math.atan2(Math.cos(declination) * Math.sin(h), -Math.sin(latRad) * Math.cos(declination) * Math.cos(h) + Math.cos(latRad) * Math.sin(declination));
-        const altitude = Math.asin(Math.sin(latRad) * Math.sin(declination) + Math.cos(latRad) * Math.cos(declination) * Math.cos(h));
-
-        return {azimuth, altitude}
-
-    }
-
     const sunHorizontalCoords = computed(() => computeSunHorizontalCoords(day.value, time.value, latitude.value, longitude.value));
 
-    function computeSunCoords(azimuth: number, altitude: number) {
-        const multiplyer = 15;
-        return {
-            x: multiplyer * Math.sin(azimuth) * Math.cos(altitude),
-            y: multiplyer * Math.sin(altitude),
-            z: multiplyer * -Math.cos(azimuth) * Math.cos(altitude)
-        }
-    }
 
     const sunCoords = computed(() => computeSunCoords(sunHorizontalCoords.value.azimuth, sunHorizontalCoords.value.altitude))
 
@@ -247,21 +161,96 @@
         return color;
     })
 
+    let stylePlateIntersectionPoint = computed(() => {
+        // intersect the plane of the plate with the line of the sundial gnomon.
+        const plane = new Plane(new Vector3(0, 1, 0), 1);
+        const rayDir = new Vector3(0, -(Math.sin(latitude.value * Math.PI / 180)), (Math.cos(latitude.value * Math.PI / 180)));
+
+        // rays are only infinite in 1 direction. Need 2 rays, try both
+        const ray = new Ray(new Vector3(0, 0, 0), rayDir);
+        let intersection = ray.intersectPlane(plane, new Vector3())
+        if (!intersection) {
+            const ray2 = new Ray(new Vector3(0, 0, 0), rayDir.clone().multiplyScalar(-1));
+            intersection = ray2.intersectPlane(plane, new Vector3())
+        }
+
+        return intersection;
+    })
+
+    let hourLines = computed(() => {
+        // angles of each hour line.
+        const angles = [...Array(12).keys()].map(i => computeShadowDirection(i * 60*Math.PI*2/1440, latitude.value * Math.PI / 180, new Vector3(...sundialNormal)));
+        
+        if (stylePlateIntersectionPoint.value) {
+            // return angles.map((angle, i) => ({
+            //     hour: i,
+            //     points: [
+            //         stylePlateIntersectionPoint.value as Vector3,
+            //         (stylePlateIntersectionPoint.value as Vector3).clone().add(angle.multiplyScalar(10))
+            //     ]
+            // }))
+
+            // clip each shadow-line with a sphere centered on the plate origin.
+            return angles.map((shadowDir, i) => {
+                const r = 5;
+                
+                const origin = new Vector3(...sundialOrigin);
+                const plateStyleIntersection = new Vector3(...stylePlateIntersectionPoint.value as Vector3);
+                
+                // intersections with the sphere and r = plateStyleIntersection + λ * shadowDir
+                // find values of λ
+                const c = Math.pow(origin.distanceTo(plateStyleIntersection), 2) - Math.pow(r, 2);
+                const b = origin.clone().sub(plateStyleIntersection).multiply(shadowDir).dot(new Vector3(1,1,1)) * -2;
+                const a = Math.pow(shadowDir.length(), 2);
+
+                const discriminant = Math.pow(b, 2) - 4*a*c;
+                if (discriminant <= 0) return {hour:i, points:undefined};
+
+                // roots.
+                // plus that: we don't want to show any part of the line where lambda is negative
+                const lambda0 = (-b - Math.sqrt(discriminant)) / (2 * a)
+                const lambda1 = (-b + Math.sqrt(discriminant)) / (2 * a)
+
+                return {
+                    hour: i,
+                    points: [
+                        shadowDir.clone().multiplyScalar(lambda0).add(plateStyleIntersection),
+                        shadowDir.clone().multiplyScalar(lambda1).add(plateStyleIntersection),
+                    ]
+                }
+
+            })
+        }
+
+        else {
+            // special case when style is parallel to the plate.
+            // todo
+            return angles.map((angle, i) => ({
+                hour:i,
+                points: [new Vector3(0, 0, 0), new Vector3(0, 0, -1)]
+            }))
+        }
+
+
+    })
+
 </script>
 
 <template>
     <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" window-size>
         <TresPerspectiveCamera />
-        <SundialObject :gnomon-rotation="gnomonRotation" />
+        <SundialObject :gnomon-rotation="gnomonRotation" :origin="sundialOrigin"/>
         <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
+        <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
+            <Line2 :points="hourLine.points ?? [[0,0,0], [0,0,0]]" :line-width="0.002" />
+        </template>
 
         <!-- directional light points at :target="[0,0,0]" by default -->
         <TresDirectionalLight :position="[sunCoords.x, sunCoords.y, sunCoords.z]" :intensity="1"
             :shadow-mapSize-width="2048" :shadow-mapSize-height="2048" cast-shadow />
         <TresAmbientLight color="#AAAAAA" />
-        <OrbitControls :enable-damping="false" :rotate-speed="0.5" :enable-pan="false" />
+        <OrbitControls :enable-damping="false" :rotate-speed="0.5" :enable-pan="false" :target="[0,0,0]" />
     </TresCanvas>
-
 
 
     <div class="sidebar">
@@ -303,8 +292,8 @@
                 @keydown.enter="hideTimeEntryBox" v-model="timeEntryValue">
             <div v-show="!isEditingTime"
                 style="display: flex; margin-left:10px; justify-content:space-between; flex-direction: column; align-items: stretch; padding-block: 9px">
-                <div class="subtitle" >{{ isDaytime ? "☀️" : "🌙" }}</div>
-                <div class="subtitle" >UTC {{ timeZoneText }}</div>
+                <div class="subtitle">{{ isDaytime ? "☀️" : "🌙" }}</div>
+                <div class="subtitle">UTC {{ timeZoneText }}</div>
             </div>
 
 
@@ -315,11 +304,11 @@
         <div class="subtitle">{{ meanSolarTimeText }} mean solar time</div>
         <div class="subtitle">{{ apparentSolarTimeText }} apparent solar time</div>
 
-
-
-
         <input type="range" min="0" max="1440" step="10" class="slider" id="time" v-model.number="localTime">
+
         <div class="subtitle">{{dateText}}</div>
+        <input type="range" min="0" max="364" step="1" class="slider" id="day" v-model.number="day">
+
 
     </div>
 
@@ -327,14 +316,15 @@
 
 
 <script lang="ts">
-    import { MaybeRef, computed, defineComponent, reactive, ref, watch } from 'vue'
+    import { MaybeRef, computed, defineComponent, onMounted, reactive, ref, watch } from 'vue'
     import SundialObject from "./SundialObject.vue";
     import SunObject from './SunObject.vue';
     import { clamp } from 'three/src/math/MathUtils';
     import { alpha, decimal, helpers, integer, maxValue, minValue, numeric, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
-    import { BasicShadowMap, DirectionalLightShadow, MinEquation } from 'three';
+    import { BasicShadowMap, DirectionalLightShadow, MinEquation, Vector3, Plane, Line3, Ray } from 'three';
 import { RefSymbol } from '@vue/reactivity';
+import { computeShadowDirection, computeSunCoords, computeSunHorizontalCoords } from '@/calculations';
     export default defineComponent({
         // props: {
 
