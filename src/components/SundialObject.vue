@@ -1,8 +1,4 @@
-<script setup lang="ts">
-    import { Text3D } from '@tresjs/cientos';
-import { TresCanvas } from '@tresjs/core';
-</script>
-
+<!-- 3D object of the sundial -->
 
 <template>
     <TresObject3D :position="origin">
@@ -32,6 +28,7 @@ import { TresCanvas } from '@tresjs/core';
     import { PropType, defineComponent } from 'vue'
     import SundialLetter from './SundialLetter.vue';
     export default defineComponent({
+        name:"SundialObject",
         components: {
             SundialLetter
         },

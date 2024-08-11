@@ -1,8 +1,4 @@
-<script setup lang="ts">
-import { Text3D } from '@tresjs/cientos';
-import { TresCanvas } from '@tresjs/core';
-</script>
-
+<!-- 3D sphere representing the sun -->
 
 <template>
     <TresObject3D :position="position">
@@ -20,6 +16,7 @@ import { TresCanvas } from '@tresjs/core';
 <script lang="ts">
 import { PropType, defineComponent } from 'vue'
 export default defineComponent({
+    name:"SunObject",
     props: {
         position: {
             required: true,

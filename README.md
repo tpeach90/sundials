@@ -1,5 +1,7 @@
 # sundials
 
+Simulate a sundial at any time/position. Under active development, and incomplete. See [docs/spec.md](docs/spec.md) for a list of planned features.
+
 ## Project setup
 ```
 npm install
@@ -19,6 +21,3 @@ npm run build
 ```
 npm run lint
 ```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).

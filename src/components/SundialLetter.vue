@@ -1,8 +1,4 @@
-<script setup lang="ts">
-    import { TresCanvas } from '@tresjs/core';
-    import { Text3D } from '@tresjs/cientos';
-
-</script>
+<!-- Letter displayed on the sundial plate. -->
 
 <template>
     <TresObject3D
@@ -29,8 +25,10 @@
 
 
 <script lang="ts">
-    import { Prop, PropType, defineComponent } from 'vue'
+    import { Text3D } from '@tresjs/cientos';
+    import {  PropType, defineComponent } from 'vue'
     export default defineComponent({
+        name:"SundialLetter",
         props:{
             text: {
                 required: true,
@@ -50,6 +48,7 @@
                 default: false,
                 type: Boolean as PropType<boolean>
             }
-        }
+        },
+        components:{Text3D}
     })
 </script>

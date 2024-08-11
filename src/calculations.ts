@@ -1,9 +1,9 @@
-import { Vector3 } from "three";
+import { Plane, Ray, Vector3 } from "three";
 
 /**
  * Compute the sun's position in horizontal coordinates, using the current date, time, latitude, and longitude.
  */
-export function computeSunHorizontalCoords(day: number, time: number, latitude: number, longitude: number) {
+export function calculateSunHorizontalCoords(day: number, time: number, latitude: number, longitude: number) {
     // using guide from here: https://en.wikipedia.org/wiki/Position_of_the_Sun
 
     const longRad = longitude * Math.PI / 180;
@@ -54,7 +54,7 @@ export function computeSunHorizontalCoords(day: number, time: number, latitude: 
  * @param multiplyer 
  * @returns 
  */
-export function computeSunCoords(azimuth: number, altitude: number, multiplyer=15) {
+export function horizontalToActualCoords(azimuth: number, altitude: number, multiplyer=15) {
     return {
         x: multiplyer * Math.sin(azimuth) * Math.cos(altitude),
         y: multiplyer * Math.sin(altitude),
@@ -71,7 +71,7 @@ export function computeSunCoords(azimuth: number, altitude: number, multiplyer=1
  * @param plateNorm Normal vector to the plane of the plate
  * @returns
  */
-export function computeShadowDirection(timeAngle: number, latitude: number, plateNorm:Vector3) {
+export function calculateShadowDirection(timeAngle: number, latitude: number, plateNorm:Vector3) {
 
 
     /** Position of the sun at an equinox (when the plane of the sun orbit is at 90° to the gnomon style)
@@ -93,5 +93,89 @@ export function computeShadowDirection(timeAngle: number, latitude: number, plat
     const shadowDir = norm1.clone().cross(plateNorm);
 
     return shadowDir;
+
+}
+
+/**
+ * Convert time to string.
+ * @param time Minutes from midnight.
+ * @returns 
+ */
+export function timeToString(time: number) {
+    const timeObj = new Date();
+    timeObj.setHours(Math.floor(time / 60));
+    timeObj.setMinutes(time % 60)
+    return timeObj.toLocaleTimeString(undefined, { hour: "numeric", minute: "numeric" })
+}
+
+/**
+ * Convert day to string
+ * @param day Days since 1st January in a non-leap year (0 to 364)
+ * @returns 
+ */
+export function dateToString(day: number) {
+    // add date to an arbitrary non-leap year
+    const dateObj = new Date(Date.parse("2001") + day * 24 * 60 * 60 * 1000);
+    return dateObj.toLocaleDateString(undefined, { month: "long", day: 'numeric' })
+}
+
+/**
+ * Convert time zone to string
+ * @param timeZone Minutes difference from UTC
+ * @returns 
+ */
+export function timeZoneToString(timeZone:number) {
+
+    const symbol = timeZone > 0 ? "+"
+        : timeZone < 0 ? "-"
+            : "±";
+    const hours = Math.abs(Math.trunc(timeZone / 60));
+    const mins = Math.abs(timeZone % 60);
+    let result = symbol + hours.toString();
+    if (mins != 0) result += ":" + mins.toString();
+    return result;
+
+}
+
+/**
+ * Intersect an infinite line with a plane
+ * @param plane The plane 
+ * @param linePoint A point on the line 
+ * @param lineDirection A vector in the direction of the line
+ * @returns The point of intersection, if it exists
+ */
+export function infiniteLineIntersectWithPlane(plane: Plane, linePoint: Vector3, lineDirection: Vector3) {
+
+    // rays are only infinite in 1 direction. Need 2 rays, try both
+    const ray = new Ray(linePoint, lineDirection);
+    let intersection = ray.intersectPlane(plane, new Vector3())
+    if (!intersection) {
+        const ray2 = new Ray(linePoint, lineDirection.clone().multiplyScalar(-1));
+        intersection = ray2.intersectPlane(plane, new Vector3())
+    }
+
+    return intersection;
+}
+
+
+export function infiniteLineIntersectWithSphere(sphereOrigin: Vector3, sphereRadius: number, linePoint: Vector3, lineDirection: Vector3) {
+
+    // intersections with the sphere and r = linePoint + λ * lineDirection
+    // find values of λ
+    const c = Math.pow(sphereOrigin.distanceTo(linePoint), 2) - Math.pow(sphereRadius, 2);
+    const b = sphereOrigin.clone().sub(linePoint).multiply(lineDirection).dot(new Vector3(1, 1, 1)) * -2;
+    const a = Math.pow(lineDirection.length(), 2);
+
+    const discriminant = Math.pow(b, 2) - 4 * a * c;
+    if (discriminant < 0) return null;
+
+    // roots.
+    const lambda0 = (-b - Math.sqrt(discriminant)) / (2 * a)
+    const lambda1 = (-b + Math.sqrt(discriminant)) / (2 * a)
+
+    return [
+        lineDirection.clone().multiplyScalar(lambda0).add(linePoint),
+        lineDirection.clone().multiplyScalar(lambda1).add(linePoint),
+    ]
 
 }
