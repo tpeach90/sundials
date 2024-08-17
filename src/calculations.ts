@@ -144,38 +144,73 @@ export function timeZoneToString(timeZone:number) {
  * @param lineDirection A vector in the direction of the line
  * @returns The point of intersection, if it exists
  */
-export function infiniteLineIntersectWithPlane(plane: Plane, linePoint: Vector3, lineDirection: Vector3) {
+export function infiniteLineIntersectWithPlaneWithDir(plane: Plane, linePoint: Vector3, lineDirection: Vector3) {
 
     // rays are only infinite in 1 direction. Need 2 rays, try both
     const ray = new Ray(linePoint, lineDirection);
     let intersection = ray.intersectPlane(plane, new Vector3())
-    if (!intersection) {
-        const ray2 = new Ray(linePoint, lineDirection.clone().multiplyScalar(-1));
-        intersection = ray2.intersectPlane(plane, new Vector3())
-    }
+    if (intersection) return {dir: 1, point: intersection}
+    
+    const ray2 = new Ray(linePoint, lineDirection.clone().multiplyScalar(-1));
+    intersection = ray2.intersectPlane(plane, new Vector3())
+    if (intersection) return {dir: -1, point:intersection};
 
-    return intersection;
+    return null;
+}
+
+/**
+ * Intersect an infinite line with a plane
+ * @param plane The plane 
+ * @param linePoint A point on the line 
+ * @param lineDirection A vector in the direction of the line
+ * @returns The point of intersection, if it exists, and the direction from the line point traveled.
+ */
+export function infiniteLineIntersectWithPlane(plane: Plane, linePoint: Vector3, lineDirection: Vector3) {
+
+    const ptWithDir = infiniteLineIntersectWithPlaneWithDir(plane, linePoint, lineDirection);
+    if (ptWithDir) return ptWithDir.point;
+    return null;
+}
+
+/**
+ * intersections with the sphere and r = linePoint + λ * lineDirection
+ * find values of λ, if they exist
+ * @param sphereOrigin 
+ * @param sphereRadius 
+ * @param linePoint 
+ * @param lineDirection 
+ */
+export function infiniteLineIntersectWithSphereParameters(sphereOrigin: Vector3, sphereRadius: number, linePoint: Vector3, lineDirection: Vector3) {
+
+    // intersections with the sphere and r = linePoint + λ * lineDirection
+    // find values of λ
+    const c = sphereOrigin.distanceToSquared(linePoint) - Math.pow(sphereRadius, 2);
+    const b = sphereOrigin.clone().sub(linePoint).multiply(lineDirection).dot(new Vector3(1, 1, 1)) * -2;
+    const a = Math.pow(lineDirection.length(), 2);
+
+    const discriminant = Math.pow(b, 2) - 4 * a * c;
+    if (discriminant < 0) return [];
+
+    return [
+        (-b - Math.sqrt(discriminant)) / (2 * a),
+        (-b + Math.sqrt(discriminant)) / (2 * a)
+    ]
+ 
 }
 
 
 export function infiniteLineIntersectWithSphere(sphereOrigin: Vector3, sphereRadius: number, linePoint: Vector3, lineDirection: Vector3) {
 
-    // intersections with the sphere and r = linePoint + λ * lineDirection
-    // find values of λ
-    const c = Math.pow(sphereOrigin.distanceTo(linePoint), 2) - Math.pow(sphereRadius, 2);
-    const b = sphereOrigin.clone().sub(linePoint).multiply(lineDirection).dot(new Vector3(1, 1, 1)) * -2;
-    const a = Math.pow(lineDirection.length(), 2);
+    const roots = infiniteLineIntersectWithSphereParameters(sphereOrigin, sphereRadius, linePoint, lineDirection) ;
+    if (roots.length == 0) return null;
 
-    const discriminant = Math.pow(b, 2) - 4 * a * c;
-    if (discriminant < 0) return null;
-
-    // roots.
-    const lambda0 = (-b - Math.sqrt(discriminant)) / (2 * a)
-    const lambda1 = (-b + Math.sqrt(discriminant)) / (2 * a)
-
-    return [
-        lineDirection.clone().multiplyScalar(lambda0).add(linePoint),
-        lineDirection.clone().multiplyScalar(lambda1).add(linePoint),
+    else return [
+        lineDirection.clone().multiplyScalar(roots[0]).add(linePoint),
+        lineDirection.clone().multiplyScalar(roots[1]).add(linePoint),
     ]
 
+}
+
+export function longitudeToTimeZone(longitude:number) {
+    return Math.round(longitude / 360 * 24) * 60;
 }

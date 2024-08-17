@@ -13,6 +13,8 @@
                 :height="0.05"
                 :cast-shadow="castShadow"
                 :receive-shadow="receiveShadow"
+                need-updates
+                center
             >
                 {{ text }}
                 <TresMeshPhongMaterial
