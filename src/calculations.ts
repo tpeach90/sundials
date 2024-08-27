@@ -102,10 +102,37 @@ export function calculateShadowDirection(timeAngle: number, latitude: number, pl
  * @returns 
  */
 export function timeToString(time: number) {
-    const timeObj = new Date();
-    timeObj.setHours(Math.floor(time / 60));
-    timeObj.setMinutes(time % 60)
-    return timeObj.toLocaleTimeString(undefined, { hour: "numeric", minute: "numeric" })
+    // const timeObj = new Date();
+    // timeObj.setHours(Math.floor(time / 60));
+    // timeObj.setMinutes(time % 60)
+    // return timeObj.toLocaleTimeString(undefined, { hour: "numeric", minute: "numeric" })
+
+    const hours = Math.floor(time / 60).toString().padStart(2, "0");
+    const minutes = Math.floor(time % 60).toString().padStart(2, "0")
+
+    return `${hours}:${minutes}`
+}
+
+/**
+ * Parses string times in format `xx:xx`
+ * @param str 
+ * @returns The time, or NaN if could not be parsed.
+ */
+export function stringToTime(str: string) {
+    const result = str.match(/^\s*([0-9]+)(?::([0-9]*))?\s*$/);
+    if (!result) return NaN;
+
+    const hours = Number.parseInt(result[1]);
+    if (hours < 0 || hours > 23) return NaN;
+
+    let minutes = 0;
+    if (result[2] && result[2] != "") {
+        minutes = Number.parseInt(result[2]);
+        if (minutes < 0 || minutes > 59) return NaN;
+    }
+
+    return hours*60 + minutes;
+
 }
 
 /**

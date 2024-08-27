@@ -5,10 +5,11 @@
     import { TresCanvas } from '@tresjs/core';
 
 
+    
     /*
      * Config
      */
-    const sundialOrigin = new Vector3(0, -1, 0);
+    const sundialOrigin = new Vector3(0, -0.5, 0);
     /** relative to sundial origin and rotation */
     const gnomonRelativePosition = ref<number[]>([0,1,0]);
     /** euler angle */
@@ -22,7 +23,7 @@
     /** 0 to 24*60 */
     let localTime = ref<number>(12 * 60);
     /** 0 to 364 (integer) */
-    let day = ref<number>(100);
+    let day = ref<number>(156);
     let longitude = ref<number>(0);
     let latitude = ref<number>(0);
     let autoSelectTimeZone = ref(true);
@@ -45,14 +46,20 @@
             isEditingTime.value = true;
             timeEntryValue.value = timeToString(localTime.value);
 
-            /** @todo this doesn't work because it is not yet mounted (?) */
-            //timeEntryBox.value?.focus();
+            nextTick(() => timeEntryBox.value?.focus());
+            
         }
     }
     function hideTimeEntryBox() {
         if (isEditingTime.value == true) {
             isEditingTime.value = false
-            /**@todo parse the time */
+            
+            if (!timeEntryBox.value) return;
+
+            const newTime = stringToTime(timeEntryBox.value.value);
+            if (isNaN(newTime)) return;
+
+            localTime.value = newTime;
         }
     }
     onClickOutside(timeEntryBox, hideTimeEntryBox)
@@ -62,9 +69,11 @@
      * Sidebar form validation 
      */
     const formDefaults = {
-        latitude:"52.48",
-        longitude:"0.12",
-        timeZone:"+0:00"
+        latitude:"45.00",
+        longitude:"0.00",
+        timeZone:"+0:00",
+        slant:"0",
+        rotation:"0",
     }
 
     /** used to parse time zone user input*/
@@ -86,6 +95,18 @@
         },
         timeZone: {
             isATimeZone: helpers.withMessage("Your time zone should look like +/-HH(:MM)", helpers.regex(timeZoneRegex))
+        },
+        slant: {
+            required,
+            decimal,
+            minValue:minValue(0),
+            maxValue:maxValue(180)
+        },
+        rotation: {
+            required,
+            decimal,
+            minValue:minValue(-180),
+            maxValue:maxValue(180)
         }
     }))
     const v$ = useVuelidate(formRules, formState)
@@ -112,6 +133,12 @@
             timeZone.value = newValInt;
         }
     }, {immediate:true})
+    watch(() => formState.slant, newVal => {
+        if (!v$.value.slant.$invalid) sundialRotation.value.x = Number.parseFloat(newVal) * Math.PI/180;
+    }, {immediate: true})
+    watch(() => formState.rotation, newVal => {
+        if (!v$.value.rotation.$invalid) sundialRotation.value.y = -Number.parseFloat(newVal) * Math.PI / 180;
+    }, { immediate: true })
 
     /**
      * Set the latitude and longitude when the user clicks on the map.
@@ -139,6 +166,18 @@
         window.addEventListener("mouseup", () => {
             mapImageIsBeingClicked.value = false;
         })
+    })
+
+    // get the dimensions of the sidebar for layout
+    let sidebarDims = ref({ clientWidth: 0, clientHeight: 0 });
+    const sidebar = ref<HTMLDivElement>();
+    const sidebarResizeObserver = new ResizeObserver(() => {
+        const clientWidth = sidebar.value?.clientWidth ?? 0;
+        const clientHeight = sidebar.value?.clientHeight ?? 0;
+        sidebarDims.value = { clientWidth, clientHeight }
+    })
+    onMounted(() => {
+        sidebarResizeObserver.observe(sidebar.value as HTMLDivElement);
     })
 
 
@@ -174,34 +213,40 @@
     let apparentSolarTimeText = computed(() => timeToString(apparentSolarTime.value))
     let timeZoneText = computed(() => timeZoneToString(timeZone.value))
     let sunlightIntensity = computed(() => {
-        // 0.8 term is so that there is still some light when the sun is just below the horizon
+        // a very unscientific way of calculating the apparent sunlight intensity.
+        // have a little bit of sunlight when the sun is below the horizon.
         if (sunHorizontalCoords.value.altitude > 0.1) return 1;
         if (sunHorizontalCoords.value.altitude > -0.1) return (sunHorizontalCoords.value.altitude + 0.1)/0.2;
         return 0;
-        // let intensity = Math.cos(Math.PI / 2 - sunHorizontalCoords.value.altitude * 0.8);
-        // if (intensity < 0) intensity = 0;
-        // return intensity;
     })
     let skyColor = computed(() => {
-        // raise to a high power so brightness stays the same throughout most of the time the sun is up
-        // to simulate eyes adjusting to the changing brightness
-        return interpolate(["#02407a", "#87CEEB"])(1-(1 - sunlightIntensity.value));
+        // make the sky look nice innit
+        return interpolate(["#02407a", "#87CEEB"])(sunlightIntensity.value);
     })
     let gnomonAbsolutePosition = computed(() => {
         return new Vector3(...gnomonRelativePosition.value)
             .applyEuler(sundialRotation.value)
             .add(new Vector3(...sundialOrigin))
     })
-    /** if there is an interection return it, and the direction along the gnomon which intersects.*/
-    let _stylePlateIntersection = computed(() => {
+    /** if there is an interection return it, and whether the intersection is in the positive direction of the gnomon vector.*/
+    let stylePlateIntersection = computed(() => {
         // intersect the plane of the plate with the line of the sundial gnomon.
         const plane = new Plane(sundialNormal.value, 0).translate(new Vector3(...sundialOrigin));
         const rayDir = new Vector3(0, -(Math.sin(latitude.value * Math.PI / 180)), (Math.cos(latitude.value * Math.PI / 180)));
         return infiniteLineIntersectWithPlaneWithDir(plane, gnomonAbsolutePosition.value, rayDir);
     })
-    let stylePlateIntersectionPoint = computed(() => _stylePlateIntersection.value?.point ?? null);
+    let stylePlateIntersectionPoint = computed(() => stylePlateIntersection.value?.point ?? null);
+
+    /** If the gnomon is parallel to the plate, this currently messes up the calculations. So just change the coordinates a tiny bit. VERY BAD AND LAZY CODE, @todo make not bad*/
+    watch(stylePlateIntersectionPoint, value => {
+        if (!value) {
+            latitude.value += 0.00001 * (Math.random()+0.5) * (latitude.value > 0 ? -1: 1)
+            longitude.value += 0.00001 * (Math.random()+0.5) * (longitude.value > 0 ? -1: 1)
+        }
+    }, {immediate: true})
+
     /** If the intersection with the plate lies on the line between the center of the gnomon and celestial north, then this value is -1. If south, then 1.*/
-    let stylePlateIntersectionPointOrder = computed(() => _stylePlateIntersection.value?.dir ?? null)
+    let stylePlateIntersectionPointOrder = computed(() => stylePlateIntersection.value?.dir ?? null)
     
     const hourLineHours = [...Array(24).keys()];
     // angle of each line on the sundial that represents one hour.
@@ -246,6 +291,8 @@
         }
     })
 
+    // vector to raise the sundial lines a bit off the plate
+    let plateToHourLineHeight = computed(() => sundialNormal.value.clone().normalize().multiplyScalar(0.007));
 
     let hourLines = computed(() => hourLineHours.map((hour, i) => {
         const shadowDir = hourLineDirections.value[i];
@@ -259,8 +306,8 @@
                 }
             })(),
             points: lambdas.length == 0 ? null : [
-                shadowDir.clone().multiplyScalar(lambdas[0]).add(stylePlateIntersectionPoint.value as Vector3),
-                shadowDir.clone().multiplyScalar(lambdas[1]).add(stylePlateIntersectionPoint.value as Vector3),
+                shadowDir.clone().multiplyScalar(lambdas[0]).add(stylePlateIntersectionPoint.value as Vector3).add(plateToHourLineHeight.value),
+                shadowDir.clone().multiplyScalar(lambdas[1]).add(stylePlateIntersectionPoint.value as Vector3).add(plateToHourLineHeight.value),
             ],
             labelPoint: (() => {
                 // where the label should be displayed.
@@ -287,157 +334,177 @@
 </script>
 
 <template>
-    <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" window-size>
-        <TresPerspectiveCamera />
-        <SundialObject :latitude="latitude" :origin="sundialOrigin" :rotation="sundialRotation"
-            :gnomon-position="gnomonRelativePosition" :hour-labels="hourLines" />
-        <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
-        <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
-            <Line2 :points="hourLine.points ?? [[0,0,0], [0,0,0]]" :line-width="0.002" />
-        </template>
+    <!-- setting the canvas to window-size messes up the Line2 rendering for some reason. Instead, make it fill an entire screen div. -->
+    <div style="width:100%; height:100%; position: fixed; left:0; top:0">
+        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap">
+            <TresPerspectiveCamera />
+            <SundialObject :latitude="latitude" :origin="sundialOrigin" :rotation="sundialRotation"
+                :gnomon-position="gnomonRelativePosition" :hour-labels="hourLines" />
+            <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
+            <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
+                <Line2 :line-width="1" :points="hourLine.points ?? [[0,0,0], [0,0,0]]" color="#FFFFFF" />
+            </template>
 
-        <!-- directional light points at :target="[0,0,0]" by default -->
-        <TresDirectionalLight :position="[sunCoords.x, sunCoords.y, sunCoords.z]"
-            :intensity="sunRaysPassThroughEarth ? 1 : sunlightIntensity" :shadow-mapSize-width="2048"
-            :shadow-mapSize-height="2048" cast-shadow />
-        <TresAmbientLight color="#AAAAAA" />
-        <OrbitControls :enable-damping="false" :rotate-speed="0.5" :enable-pan="false" :target="[0,0,0]" />
-        <TresGridHelper :args="[50, 50, '#AAAAAA', '#AAAAAA']" :position="[0, -8, 0]" />
-    </TresCanvas>
+            <!-- directional light points at :target="[0,0,0]" by default -->
+            <TresDirectionalLight :position="[sunCoords.x, sunCoords.y, sunCoords.z]"
+                :intensity="sunRaysPassThroughEarth ? 1 : sunlightIntensity" :shadow-mapSize-width="2048"
+                :shadow-mapSize-height="2048" cast-shadow />
+            <TresAmbientLight color="#AAAAAA" />
+            <OrbitControls :enable-damping="false" :rotate-speed="0.5" :enable-pan="false" :target="[0,0,0]" />
+            <TresGridHelper :args="[50, 50, '#AAAAAA', '#AAAAAA']" :position="[0, -8, 0]" />
+            <CameraOffsetHelper :x-offset="-(sidebarDims.clientWidth)/2" />
+            <RendererHelper/>
+        </TresCanvas>
+    </div>
 
+    <div id="overlay">
 
-    <div class="sidebar">
+        <div id="sidebar" ref="sidebar">
+            <div id="sidebarContent">
 
-        <!-- Position -->
-        <h2>Coordinates</h2>
-        <div class="horizontal_settings">
-            <div class="setting">
-                <label>Latitude</label>
-                <input class="small_input" v-model="v$.latitude.$model">
-                <div class="error" v-if="v$.latitude.$dirty && v$.latitude.$invalid">{{
-                    v$.latitude.$errors[0].$message}}</div>
-            </div>
-            <div class="setting">
-                <label>Longitude</label>
-                <input class="small_input" v-model="v$.longitude.$model">
-                <div class="error" v-if="v$.longitude.$dirty &&v$.longitude.$invalid">{{
-                    v$.longitude.$errors[0].$message}}</div>
-            </div>
-            <div class="setting">
-                <label>Time Zone</label>
-                <input class="small_input" v-model="v$.timeZone.$model">
-                <div class="error" v-if="v$.timeZone.$dirty && v$.timeZone.$invalid">{{
-                    v$.timeZone.$errors[0].$message }}</div>
-            </div>
-        </div>
-
-        <!-- interactive location selector -->
-        <div>
-            <div style="display: grid; grid-template-columns: min-content auto;">
-                <input style="grid-row: 1; grid-column: 1; margin-right:10px" type="range" min="-90" max="90"
-                    step="-0.1" class="slider" orient="vertical" v-model="v$.latitude.$model">
-                <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
-                <div style="position:relative">
-                    <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
-                        alt="An outline world map, on which the user can click to set the latitude and longitude."
-                        style="grid-row: 1; grid-column: 2; aspect-ratio: 2 / 1" draggable="false"
-                        @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking" @click="mapImageClick"
-                        ref="mapImage">
-                    <div id="markerPoint"
-                        :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`"></div>
+                <!-- Position -->
+                <h2>Coordinates</h2>
+                <div class="horizontal_settings">
+                    <div class="setting">
+                        <label class="fieldTitle">Latitude/°</label>
+                        <input class="small_input" v-model="v$.latitude.$model">
+                        <div class="error" v-if="v$.latitude.$dirty && v$.latitude.$invalid">{{
+                            v$.latitude.$errors[0].$message}}</div>
+                    </div>
+                    <div class="setting">
+                        <label class="fieldTitle">Longitude/°</label>
+                        <input class="small_input" v-model="v$.longitude.$model">
+                        <div class="error" v-if="v$.longitude.$dirty &&v$.longitude.$invalid">{{
+                            v$.longitude.$errors[0].$message}}</div>
+                    </div>
+                    <div class="setting">
+                        <label class="fieldTitle">Time Zone/±UTC</label>
+                        <input class="small_input" v-model="v$.timeZone.$model">
+                        <div class="error" v-if="v$.timeZone.$dirty && v$.timeZone.$invalid">{{
+                            v$.timeZone.$errors[0].$message }}</div>
+                    </div>
                 </div>
 
-                <input style="grid-row: 2; grid-column: 2; margin-top:4px" type="range" min="-180" max="180" step="0.1"
-                    class="slider" v-model="v$.longitude.$model">
+                <!-- interactive location selector -->
+                <div
+                    style="display: grid; grid-template-columns: min-content auto; grid-template-rows: min-content auto;">
+                    <input
+                        style="grid-row: 1; grid-column: 1; margin-right:10px; height:100%; margin-top: 0px; margin-bottom:0px;"
+                        type="range" min="-90" max="90" step="-0.1" class="slider" orient="vertical"
+                        v-model="v$.latitude.$model">
+                    <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
+                    <div style="position:relative; aspect-ratio: 2 / 1;">
+                        <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
+                            alt="An outline world map, on which the user can click to set the latitude and longitude."
+                            style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px"
+                            draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking"
+                            @click="mapImageClick" ref="mapImage">
+                        <div id="markerPoint"
+                            :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`"></div>
+                    </div>
+
+                    <input style="grid-row: 2; grid-column: 2; margin-top:10px; margin-left:0px; margin-right:0px"
+                        type="range" min="-180" max="180" step="0.1" class="slider" v-model="v$.longitude.$model">
+                </div>
+
+
+                <div class="setting">
+                    <input type="checkbox" id="autoSelectTimeZone" v-model="autoSelectTimeZone"
+                        style="margin-right: 10px; display: inline;">
+                    <label for="autoSelectTimeZone" class="fieldOption">Automatically set time zone</label>
+                </div>
+
+                <br>
+                <h2>Sundial Settings</h2>
+                <div class="setting">
+                    <label class="fieldTitle">Slant/°</label>
+                    <input class="small_input" v-model="v$.slant.$model">
+                    <div class="error" v-if="v$.slant.$dirty && v$.slant.$invalid">{{
+                        v$.slant.$errors[0].$message }}</div>
+                    <input type="range" :min="0" :max="180" step="1" class="slider" v-model="v$.slant.$model">
+                </div>
+                <div class="setting">
+                    <label class="fieldTitle">Rotation/°</label>
+                    <input class="small_input" v-model="v$.rotation.$model">
+                    <div class="error" v-if="v$.rotation.$dirty && v$.rotation.$invalid">{{
+                        v$.rotation.$errors[0].$message }}</div>
+                    <input type="range" :min="-180" :max="180" step="1" class="slider" v-model="v$.rotation.$model">
+                </div>
+                <div class="setting">
+                    <label class="fieldTitle">Hour lines</label>
+                    <div class="checkboxSetting">
+                        <input type="radio" id="solarLines" value="solar" v-model="hourLineStyle">
+                        <label for="solarLines" class="fieldOption">Solar time</label>
+                    </div>
+                    <div class="checkboxSetting">
+                        <input type="radio" id="standardLines" value="standard" v-model="hourLineStyle">
+                        <label for="standardLines" class="fieldOption">Adjusted for time zone</label>
+                    </div>
+                </div>
+
+                <br>
+                <div class="setting">
+                    <label class="fieldTitle">Numerals</label>
+                    <div class="checkboxSetting">
+                        <input type="radio" id="arabic" value="arabic" v-model="numerals">
+                        <label for="arabic" class="fieldOption">Western Arabic (0-23)</label>
+                    </div>
+                    <div class="checkboxSetting">
+                        <input type="radio" id="roman" value="roman" v-model="numerals">
+                        <label for="roman" class="fieldOption">Roman (I-XXIV)</label>
+                    </div>
+                </div>
+
+                <br>
+                <h2>Misc</h2>
+                <div class="checkboxSetting">
+                    <input type="checkbox" id="sunRaysPassThroughEarth" v-model="sunRaysPassThroughEarth">
+                    <label for="sunRaysPassThroughEarth" class="fieldOption">Sundial remains illuminated at
+                        night</label>
+                </div>
+
+                <br>
             </div>
+
+
+            <!-- breathing space at the bottom. Css padding leads to an overflow for some reason
+            <div style="height:100px"></div> -->
         </div>
 
-        <div class="setting">
-            <input type="checkbox" id="autoSelectTimeZone" v-model="autoSelectTimeZone"
-                style="margin-right: 10px; display: inline;">
-            <label for="autoSelectTimeZone" style="display: inline">Automatically set time zone</label>
-        </div>
 
-        <br>
-        <h2>Sundial Settings</h2>
-        <div class="setting">
-            <label>Slant</label>
-            <input type="range" :min="0" :max="Math.PI" step="0.01" class="slider" v-model="sundialRotation.x">
-        </div>
-        <div class="setting">
-            <label>Rotation</label>
-            <input type="range" :min="-Math.PI" :max="Math.PI" step="0.01" class="slider" v-model="sundialRotation.y">
-        </div>
-        <div class="setting">
-            <label>Hour lines</label>
-            <div class="checkboxSetting">
-                <input type="radio" id="solarLines" value="solar" v-model="hourLineStyle">
-                <label for="solarLines">Solar time</label>
+
+        <!-- status overlay -->
+        <div class="status">
+
+            <div style="display:flex; flex-direction: row;">
+                <div class="time_display" v-show="!isEditingTime" @click="showTimeEntryBox"
+                    @keydown.space="showTimeEntryBox" tabindex="0">{{ timeText }}</div>
+                <input v-show="isEditingTime" ref="timeEntryBox" class="timeEntryBox" @blur="hideTimeEntryBox"
+                    @keydown.enter="hideTimeEntryBox" v-model="timeEntryValue">
+                <div v-show="!isEditingTime"
+                    style="display: flex; margin-left:10px; justify-content:space-between; flex-direction: column; align-items: stretch; padding-block: 9px">
+                    <div class="subtitle">{{ isDaytime ? "☀️" : "🌙" }}</div>
+                    <div class="subtitle">UTC {{ timeZoneText }}</div>
+                </div>
+
+
             </div>
-            <div class="checkboxSetting">
-                <input type="radio" id="standardLines" value="standard" v-model="hourLineStyle">
-                <label for="standardLines">Adjusted for time zone</label>
-            </div>
+
+
+
+            <div class="subtitle">{{ meanSolarTimeText }} mean solar time</div>
+            <div class="subtitle">{{ apparentSolarTimeText }} apparent solar time</div>
+
+            <input type="range" min="0" max="1440" step="10" class="slider" id="time" v-model.number="localTime">
+
+            <div class="subtitle">{{dateText}}</div>
+            <input type="range" min="0" max="364" step="1" class="slider" id="day" v-model.number="day">
+
+
         </div>
-
-        <br>
-        <div class="setting">
-            <label>Numerals</label>
-            <div class="checkboxSetting">
-                <input type="radio" id="arabic" value="arabic" v-model="numerals">
-                <label for="arabic">Western Arabic (0-23)</label>
-            </div>
-            <div class="checkboxSetting">
-                <input type="radio" id="roman" value="roman" v-model="numerals">
-                <label for="roman">Roman (I-XXIV)</label>
-            </div>
-        </div>
-
-        <br>
-        <h2>Misc</h2>
-        <div class="checkboxSetting">
-            <input type="checkbox" id="sunRaysPassThroughEarth" v-model="sunRaysPassThroughEarth">
-            <label for="sunRaysPassThroughEarth">Allow sun rays to pass through the Earth</label>
-        </div>
-
-        <br>
-
-
-        <!-- breathing space at the bottom. Css padding leads to an overflow for some reason -->
-        <div style="height:100px"></div>
     </div>
 
 
-
-    <!-- status overlay -->
-    <div class="status">
-
-        <div style="display:flex; flex-direction: row;">
-            <div class="time_display" v-show="!isEditingTime" @click="showTimeEntryBox"
-                @keydown.space="showTimeEntryBox" tabindex="0">{{ timeText }}</div>
-            <input v-show="isEditingTime" ref="timeEntryBox" class="timeEntryBox" @blur="hideTimeEntryBox"
-                @keydown.enter="hideTimeEntryBox" v-model="timeEntryValue">
-            <div v-show="!isEditingTime"
-                style="display: flex; margin-left:10px; justify-content:space-between; flex-direction: column; align-items: stretch; padding-block: 9px">
-                <div class="subtitle">{{ isDaytime ? "☀️" : "🌙" }}</div>
-                <div class="subtitle">UTC {{ timeZoneText }}</div>
-            </div>
-
-
-        </div>
-
-
-
-        <div class="subtitle">{{ meanSolarTimeText }} mean solar time</div>
-        <div class="subtitle">{{ apparentSolarTimeText }} apparent solar time</div>
-
-        <input type="range" min="0" max="1440" step="10" class="slider" id="time" v-model.number="localTime">
-
-        <div class="subtitle">{{dateText}}</div>
-        <input type="range" min="0" max="364" step="1" class="slider" id="day" v-model.number="day">
-
-
-    </div>
 
 </template>
 
@@ -446,13 +513,15 @@
     import { Line2, OrbitControls } from '@tresjs/cientos'
     import { onClickOutside } from '@vueuse/core'
     import interpolate from "color-interpolate";
-    import { computed, defineComponent, onMounted, reactive, ref, watch } from 'vue'
+    import { computed, defineComponent, nextTick, onMounted, reactive, ref, watch } from 'vue'
     import SunObject from './components/SunObject.vue';
     import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
     import { BasicShadowMap, Vector3, Plane, Euler, Matrix4,} from 'three';
-    import { dateToString, calculateShadowDirection, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, infiniteLineIntersectWithPlane, infiniteLineIntersectWithSphere, infiniteLineIntersectWithSphereParameters, infiniteLineIntersectWithPlaneWithDir, longitudeToTimeZone } from '@/calculations';
+    import { dateToString, calculateShadowDirection, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, infiniteLineIntersectWithSphereParameters, infiniteLineIntersectWithPlaneWithDir, longitudeToTimeZone, stringToTime } from '@/calculations';
     import SundialObject from './components/SundialObject.vue';
+    import CameraOffsetHelper from './components/CameraOffsetHelper.vue';
+    import RendererHelper from './components/RendererHelper.vue';
     export default defineComponent({
         name:"App",
         components: {SundialObject, SunObject}
@@ -467,25 +536,51 @@
 </style>
 
 <style scoped>
-    .sidebar {
-        width: 30%;
-        max-width: 500px;
-        background: rgba(39, 39, 39, 0.95);
-        position: absolute;
-        left: 0;
+    #overlay {
+        position:absolute;
+        width: 100%;
+        height:100%;
+        left:0;
         top:0;
+        overflow: hidden;
+        display:flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-end;
+        pointer-events: none;
+
+    }
+
+    #sidebar {
+        /* flex:1;
+        flex-grow: 0; */
+        pointer-events:auto;
+        width: 35%;
+        max-width: 500px;
+        min-width:150px;
+        background: rgba(39, 39, 39, 0.95);
+        /* position: relative; */
+        /* left: 0;
+        top:0; */
         height: 100%;
         /* padding-top: 20px;
         padding-left:20px;
         padding-right: 20px;
         padding-bottom: 100px; */
-        padding: 20px;
-        overflow-x: scroll;
+        
+        overflow-x: hidden;
+        overflow-y: scroll;
     }
-    .sidebar h2 {
+    #sidebar h2 {
         /* color:white; */
         font-size: 15pt;
         background-color: brown
+    }
+
+    #sidebarContent {
+        padding: 20px;
+        width:100%;
+        box-sizing: border-box;
     }
 
     .horizontal_settings {
@@ -501,11 +596,22 @@
         flex:1
     }
 
-    .setting label {
+    /* .setting label {
+
+    } */
+
+    .fieldTitle {
         display: block;
-        /* font-weight: bold; */
         margin-bottom: 3px;
-        font-size: 11pt
+        font-size: 11pt;
+        white-space: nowrap
+    }
+
+    .fieldOption {
+        display: inline;
+        /* margin-bottom: 3px; */
+        font-size: 11pt;
+        /* white-space: nowrap */
     }
 
     .setting .error {
@@ -550,12 +656,15 @@
 
 
     .status {
-        position: absolute;
-        bottom:0;
-        right:0;
+        /* position: absolute; */
+        /* bottom:0;
+        right:0; */
+        pointer-events:auto;
+        flex:1;
         font-family: monospace;
-        margin-right: 20px;
-        margin-bottom: 20px;
+        /* margin-right: 20px;
+        margin-bottom: 20px; */
+        margin:20px;
         text-align: left;
         color:v-bind("statusTextColor");
         max-width:350px;
@@ -581,13 +690,19 @@
         font-size: 12pt;
     }
 
+    input[type=range] {
+        height: 20px;
+    }
+
     input[type=range][orient=vertical] {
         writing-mode: vertical-lr;
         direction: rtl;
         appearance: slider-vertical;
-        width: 16px;
+        width: 20px;
         vertical-align: bottom;
     }
+
+
 
     #coordBox {
         background-color: white;
@@ -599,7 +714,7 @@
         height: 10px;
         transform: translate(-5px, -5px);
         border-radius: 5px;
-        background-color: red;
+        background-color: brown;
         grid-row: 1;
         grid-column: 2;
         position: absolute;

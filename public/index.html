@@ -1,16 +1,27 @@
 <!DOCTYPE html>
-<html lang="">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta name="description" content="3D sundial visualization. Set your coordinates and see how sunlight strikes the sundial throughout the year.">
+    <meta name="keywords" content="sundial, simulation, visualization, Three.js">
+    <meta name="author" content="tpeach90">
     <link rel="icon" href="<%= BASE_URL %>favicon.ico">
-    <title><%= htmlWebpackPlugin.options.title %></title>
+    <title>tpeach90/sundials - Interactive Sundial Simulator</title>
   </head>
-  <body>
-    <noscript>
-      <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
-    </noscript>
+  <body style="background-color: #87CEEB;">
+
+
+    <!--  display set to none when vue loads. -->
+    <div id="loadingMessage" style="font-family: monospace; text-align: center; color:black; text-wrap: nowrap; position: fixed; top: 50%; left: 50%; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); background-color: rgba(255, 255, 255, .3); padding-left:10px; padding-right:10px;  border-radius: 10px;">
+      <p>loading...</p>
+      <noscript>
+        <p style="text-wrap: wrap;">We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled.
+            Please enable it to continue.</p>
+      </noscript>
+    </div>
+
     <div id="app"></div>
     <!-- built files will be auto injected -->
   </body>

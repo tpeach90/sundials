@@ -15,6 +15,7 @@
                 :receive-shadow="receiveShadow"
                 need-updates
                 center
+                
             >
                 {{ text }}
                 <TresMeshPhongMaterial
