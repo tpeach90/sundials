@@ -107,8 +107,8 @@ export function timeToString(time: number) {
     // timeObj.setMinutes(time % 60)
     // return timeObj.toLocaleTimeString(undefined, { hour: "numeric", minute: "numeric" })
 
-    const hours = Math.floor(time / 60).toString().padStart(2, "0");
-    const minutes = Math.floor(time % 60).toString().padStart(2, "0")
+    const hours = Math.floor((((time / 60)%24)+24)%24).toString().padStart(2, "0");
+    const minutes = Math.floor(((time % 60)+60) % 60).toString().padStart(2, "0")
 
     return `${hours}:${minutes}`
 }
