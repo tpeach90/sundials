@@ -7,7 +7,7 @@
     >
         <Suspense>
             <Text3D
-                font="/fonts/PTSerif_Regular.json"
+                font="./fonts/PTSerif_Regular.json"
                 :size="0.2"
                 :bevel-enabled="false"
                 :height="0.05"
