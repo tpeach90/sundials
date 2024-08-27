@@ -1,6 +1,8 @@
 # sundials
 
-Simulate a sundial at any time/position. Under active development, and incomplete. See [docs/spec.md](docs/spec.md) for a list of planned features.
+https://tpeach90.github.io/sundials/
+
+Simulate a sundial at any time/position. See [docs/spec.md](docs/spec.md) for a list of planned features.
 
 ## Project setup
 ```
