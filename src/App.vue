@@ -26,7 +26,7 @@
     /** 0 to 24*60 */
     let localTime = ref<number>(12 * 60);
     /** 0 to 364 (integer) */
-    let day = ref<number>(156);
+    let day = ref<number>(162);
     let longitude = ref<number>(0);
     let latitude = ref<number>(0);
     let autoSelectTimeZone = ref(true);
@@ -211,7 +211,6 @@
         const latRad = latitude.value * Math.PI/180;
         const timeHours = Math.atan2(sunCoords.value.y * Math.cos(latRad) + sunCoords.value.z * Math.sin(latRad), sunCoords.value.x) * 12 / Math.PI + 6;
         const timeMins = (((timeHours % 24) + 24) % 24) * 60;
-        console.log(timeMins - meanSolarTime.value)
         return timeMins;
     })
     let apparentSolarTimeText = computed(() => timeToString(apparentSolarTime.value))

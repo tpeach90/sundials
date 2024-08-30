@@ -23,10 +23,6 @@
                     "url": "webpack://sundials/src/App.vue",
                     "path": "${workspaceFolder}/src/App.vue"
                 },
-                {
-                    "url": "webpack:///sundials/",
-                    "path": "${workspaceFolder}"
-                }
             ],
             "tmpDir": "${workspaceFolder}/firefox_temp"
         }
