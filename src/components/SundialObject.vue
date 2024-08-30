@@ -9,6 +9,10 @@
             default: 0,
             type: Number as PropType<number>
         },
+        radius: {
+            required: true,
+            type: Number as PropType<number>
+        },
         gnomonPosition: {
             required: true,
             default:() => [0, 1, 0],
@@ -53,7 +57,7 @@
         <!-- plate -->
         <TresMesh :position="[0,-0.05,0]" cast-shadow receive-shadow>
             <!-- <TresBoxGeometry :args="[5,0.1, 5,]" /> -->
-            <TresCylinderGeometry :args="[5, 5, 0.1]" />
+            <TresCylinderGeometry :args="[radius, radius, 0.1]" />
             <TresMeshPhongMaterial color="#f9ecec" />
         </TresMesh>
 
@@ -75,6 +79,7 @@
     import { PropType, computed, defineComponent, defineProps, ref } from 'vue'
     import SundialLetter from './SundialLetter.vue';
     import { Euler, Matrix3, Matrix4, Vector3 } from 'three';
+import { required } from '@vuelidate/validators';
     export default defineComponent({
         name:"SundialObject",
         components: {

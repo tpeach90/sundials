@@ -1,4 +1,8 @@
-import { Plane, Ray, Vector3 } from "three";
+import { Matrix3, Plane, Ray, Vector3 } from "three";
+
+export function rad(degrees: number) {
+    return degrees * Math.PI/180
+}
 
 /**
  * Compute the sun's position in horizontal coordinates, using the current date, time, latitude, and longitude.
@@ -11,11 +15,25 @@ export function calculateSunHorizontalCoords(day: number, time: number, latitude
 
     // pretend the year is 2023 (non-leap year)
     // calculate ecliptic coordinates
-    const n = 8400.5 + day + time / 1440;
-    const L = (4.89495042 + 0.017202792 * n) % (2 * Math.PI);
-    const g = (6.240040768 + 0.01720197 * n) % (2 * Math.PI);
-    const lambda = L + 0.033423055 * Math.sin(g) + 0.000349066 * Math.sin(2 * g);
-    const epsilon = 0.409087723 - 4e-7 * Math.PI / 180 * n;
+    /** `D_utc`. Always within 1 second of `D_ut`, the observed value.
+     * Leap seconds are added/subtracted to `D_utc` to compensate. 
+     * `D_utc` is the (fractional) number of days since noon on January 1st, 2000.
+     * Wikipedia page on position of the sun refers to this value as `n`.
+     * D_utc IS FRACTIONAL here!
+     * */
+    const D_utc = 8400.5 + day + time / 1440;
+    // tai was 37 seconds ahead of UTC in 2023
+    const D_tai = D_utc + 37 / (24 * 60 * 60)
+    /**
+     * Terrestrial Time (32.184 seconds ahead of TAI)
+     * https://aa.usno.navy.mil/faq/TT
+     */ 
+    const D_tt = D_tai + 32.184 / (24 * 60 * 60);
+
+    const L = (rad(280.460) + rad(0.9856474) * D_tt) % (2 * Math.PI);
+    const g = (rad(357.528) + rad(0.9856003) * D_tt) % (2 * Math.PI);
+    const lambda = L + rad(1.915) * Math.sin(g) + rad(0.020) * Math.sin(2 * g);
+    const epsilon = rad(23.4393) - rad(4e-7) * D_tt;
 
 
     // convert to equitorial coords
@@ -25,15 +43,25 @@ export function calculateSunHorizontalCoords(day: number, time: number, latitude
 
     // compute hour angle
     // https://aa.usno.navy.mil/faq/GAST
-    // /** Greenwich mean sidereal time (converted to hour angle) */
-    // const GMST = ((18.697375 + 24.065709824279 * n) % 24) * Math.PI/12;
+    const D_utc_of_last_midnight = Math.trunc(D_utc + 0.5)- 0.5
+    /** Hours since last midnight */
+    const H = (D_utc - D_utc_of_last_midnight) * 24
+    /**Centuries since noon on Jan 1st 2000 */
+    const T = D_tt/36525;
+    /** Greenwich apparent sidereal time (converted to hour angle) */
+    const GMST = (6.697375 + 0.065707485828 * D_utc_of_last_midnight + 1.0027379*H + 0.0854103*T + 0.0000258 * Math.pow(T, 2)) * Math.PI/12
+    // const GMST = ((18.697375 + 24.065709824279 * D_utc) % 24) * Math.PI/12;
+    const omega = rad(125.04) - rad(0.052954)*D_tt;
+    const deltaPsi = (-0.000319 * Math.sin(omega) - 0.000024 * Math.sin(2 * L)) * Math.PI / 12
+    const eqeq = deltaPsi * Math.cos(epsilon);
+    const GAST = GMST + eqeq;
 
-    // earth rotation angle
-    // const ERA = 2 * Math.PI * ((0.7790572732640 + 1.00273781191135448 * n) % 1);
-    const ERA = 2 * Math.PI * ((0.7790572732640 + 1.002737811911355 * n) % 1);
+    // earth rotation angle - INACCURATE for finding the sun pos!! use GAST instead
+    // // const ERA = 2 * Math.PI * ((0.7790572732640 + 1.00273781191135448 * n) % 1);
+    // const ERA = 2 * Math.PI * ((0.7790572732640 + 1.002737811911355 * n) % 1);
 
     /** local mean sidereal time */
-    const LMST = ERA + longRad;
+    const LMST = GAST + longRad;
     /** hour angle */
     const h = LMST - rightAsc;
 
@@ -61,6 +89,18 @@ export function horizontalToActualCoords(azimuth: number, altitude: number, mult
         z: multiplyer * -Math.cos(azimuth) * Math.cos(altitude)
     }
 }
+
+/** Direction vector to the sun at an equinox (when the plane of the sun orbit is at 90° to the gnomon style)
+ * 
+ * Ignoring eliptical orbit/apparent time effects
+ * @param timeAngle Midnight to midnight, 0 to 2π
+ * @param latitude Latitude, in radians
+*/
+export function sunPosAtEquinox(timeAngle:number, latitude:number) {
+    return new Vector3(Math.sin(timeAngle), -Math.cos(timeAngle) * Math.cos(latitude), -Math.cos(timeAngle) * Math.sin(latitude));
+}
+
+
 /**
  * Compute vector of the shadow path on the plate at a specific time
  * 
@@ -78,7 +118,7 @@ export function calculateShadowDirection(timeAngle: number, latitude: number, pl
      * 
      * Ignoring eliptical orbit/apparent time effects
     */
-    const sunPos = new Vector3(Math.sin(timeAngle), -Math.cos(timeAngle)*Math.cos(latitude), -Math.cos(timeAngle)*Math.sin(latitude));
+    const sunPos = sunPosAtEquinox(timeAngle, latitude);
 
     /** unit vector of the gnomon style */
     const style = new Vector3(0, Math.sin(latitude), -Math.cos(latitude));
@@ -240,4 +280,26 @@ export function infiniteLineIntersectWithSphere(sphereOrigin: Vector3, sphereRad
 
 export function longitudeToTimeZone(longitude:number) {
     return Math.round(longitude / 360 * 24) * 60;
+}
+
+
+/**
+ * Taken from https://stackoverflow.com/a/62141424.
+ * 
+ * Intersecrion point of 3 planes.
+ * @returns 
+ */
+export function vertIntersectPlanes(p1: Plane, p2: Plane, p3: Plane) {
+    const n1 = p1.normal, n2 = p2.normal, n3 = p3.normal;
+    const x1 = p1.coplanarPoint(new Vector3());
+    const x2 = p2.coplanarPoint(new Vector3());
+    const x3 = p3.coplanarPoint(new Vector3());
+    const f1 = new Vector3().crossVectors(n2, n3).multiplyScalar(x1.dot(n1));
+    const f2 = new Vector3().crossVectors(n3, n1).multiplyScalar(x2.dot(n2));
+    const f3 = new Vector3().crossVectors(n1, n2).multiplyScalar(x3.dot(n3));
+    const det = new Matrix3().set(n1.x, n1.y, n1.z, n2.x, n2.y, n2.z, n3.x, n3.y, n3.z).determinant();
+    if (det == 0) return null;
+    const vectorSum = new Vector3().add(f1).add(f2).add(f3);
+    const planeIntersection = new Vector3(vectorSum.x / det, vectorSum.y / det, vectorSum.z / det);
+    return planeIntersection;
 }
