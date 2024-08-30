@@ -1,0 +1,34 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch localhost",
+            "type": "firefox",
+            "request": "launch",
+            "reAttach": true,
+            "firefoxExecutable": "/usr/bin/firefox",
+            "url": "http://localhost:8080/",
+            "skipFiles": [
+                "${workspaceFolder}/node_modules/**"
+            ],
+            "pathMappings": [
+                {
+                    "url": "webpack://sundials/src/calculations.ts",
+                    "path": "${workspaceFolder}/src/calculations.ts"
+                },
+                {
+                    "url": "webpack://sundials/src/App.vue",
+                    "path": "${workspaceFolder}/src/App.vue"
+                },
+                {
+                    "url": "webpack:///sundials/",
+                    "path": "${workspaceFolder}"
+                }
+            ],
+            "tmpDir": "${workspaceFolder}/firefox_temp"
+        }
+    ]
+}
