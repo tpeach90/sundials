@@ -13,14 +13,14 @@
   <body style="background-color: #87CEEB;">
 
 
-    <!--  display set to none when vue loads. -->
-    <div id="loadingMessage" style="font-family: monospace; text-align: center; color:black; text-wrap: nowrap; position: fixed; top: 50%; left: 50%; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); background-color: rgba(255, 255, 255, .3); padding-left:10px; padding-right:10px;  border-radius: 10px;">
-      <p>loading...</p>
       <noscript>
+        <div style="font-family: monospace; text-align: center; color:black; text-wrap: nowrap; position: fixed; top: 50%; left: 50%; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); background-color: rgba(255, 255, 255, .3); padding-left:10px; padding-right:10px;  border-radius: 10px;">
+
         <p style="text-wrap: wrap;">We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled.
             Please enable it to continue.</p>
+
+        </div>
       </noscript>
-    </div>
 
     <div id="app"></div>
     <!-- built files will be auto injected -->

@@ -76,10 +76,9 @@
 
 
 <script lang="ts">
-    import { PropType, computed, defineComponent, defineProps, ref } from 'vue'
+    import { PropType, computed, defineComponent, defineProps } from 'vue'
     import SundialLetter from './SundialLetter.vue';
-    import { Euler, Matrix3, Matrix4, Vector3 } from 'three';
-import { required } from '@vuelidate/validators';
+    import { Euler, Matrix4, Vector3 } from 'three';
     export default defineComponent({
         name:"SundialObject",
         components: {

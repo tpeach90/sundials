@@ -1,0 +1,180 @@
+body.v-tour--active {
+    pointer-events: none
+}
+
+.v-tour {
+    pointer-events: auto
+}
+
+.v-tour__target--highlighted {
+    box-shadow: 0 0 0 4px #0006;
+    pointer-events: auto;
+    z-index: 9999
+}
+
+.v-tour__target--relative {
+    position: relative
+}
+
+.v-step {
+    background: rgba(165, 42, 42, 0.95);
+    color: #fff;
+    width: 320px;
+    max-width: 60vw;
+    max-height: 90vh;
+    border-radius: 3px;
+    box-shadow: #00000000 0 0, #0000 0 0, #0000001a 0 4px 6px -1px, #0000000f 0 2px 4px -1px;
+    padding: 10px;
+    pointer-events: auto;
+    text-align: center;
+    z-index: 10000;
+    /* overflow-y: scroll;
+    overflow-x: hidden; */
+    /* overflow:shown; */
+    font-size: 11pt;
+
+}
+
+.v-step a {
+    color: #fff
+}
+
+/* stuff that i cant style using the --popper varibles */
+.popper_content {
+    width: 33vw;
+    max-width: 500px;
+    max-height:90vh;
+    font-family: sans-serif;
+    font-size: 11pt;
+    text-align: center;
+    overflow-y: scroll;
+    
+}
+
+:root {
+    --popper-theme-background-color:rgba(165, 42, 42, 0.95);
+    --popper-theme-background-color-hover: rgba(165, 42, 42, 0.95);
+    --popper-theme-text-color: #ffffff;
+    --popper-theme-border-width: 0px;
+    --popper-theme-border-style: solid;
+    --popper-theme-border-radius: 3px;
+    --popper-theme-padding: 10px;
+    --popper-theme-box-shadow: #00000000 0 0,
+        #0000 0 0,
+        #0000001a 0 4px 6px -1px,
+        #0000000f 0 2px 4px -1px;
+}
+
+.v-step--sticky {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%)
+}
+
+.v-step--sticky .v-step__arrow {
+    display: none
+}
+
+
+.v-step__arrow,
+.v-step__arrow:before {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: inherit
+}
+
+.v-step__arrow {
+    visibility: hidden
+}
+
+.v-step__arrow--dark:before {
+    background: #454d5d
+}
+
+.v-step__arrow:before {
+    visibility: visible;
+    content: "";
+    transform: rotate(45deg)
+}
+
+.v-step[data-popper-placement^=top]>.v-step__arrow {
+    bottom: -5px;
+    left: calc(50% - 10px)
+}
+
+.v-step[data-popper-placement^=bottom]>.v-step__arrow {
+    display: none;
+    top: -5px;
+    left: calc(50% - 10px)
+}
+
+.v-step[data-popper-placement^=right]>.v-step__arrow {
+    left: -9px;
+    top: calc(50% - 10px)
+}
+
+.v-step[data-popper-placement^=left]>.v-step__arrow {
+    right: 1px;
+    top: calc(50% - 10px)
+}
+
+.v-step__header {
+    margin: -10px -10px 5px;
+    padding: 5px;
+    background-color: #454d5d;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px
+}
+
+.v-step__content {
+    margin: 0 0 10px
+}
+
+.v-step__button {
+    background: transparent;
+    border: .05rem solid white;
+    border-radius: .1px;
+    color: #fff;
+    cursor: pointer;
+    display: inline-block;
+    font-size: .8rem;
+    height: 1.8rem;
+    line-height: 10px;
+    outline: none;
+    margin: 0 .2rem;
+    padding: .35rem .4rem;
+    text-align: center;
+    text-decoration: none;
+    transition: all .2s ease;
+    vertical-align: middle;
+    white-space: nowrap
+}
+
+.v-step__button:hover {
+    background-color: #fffffff2;
+    color: #50596c
+}
+
+.mask {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: #00000080
+}
+
+.mask .tour-focus-container {
+    border-radius: 4px;
+    transition: opacity 0.2s;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: 0 0 0 9999px #11375066, 0 0 15px #00000080
+}

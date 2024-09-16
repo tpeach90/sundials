@@ -3,8 +3,6 @@
 <script setup lang="ts">
 
     import { TresCanvas } from '@tresjs/core';
-
-
     
     /*
      * Config
@@ -19,9 +17,35 @@
     let sundialRotation = ref<Euler>(new Euler(0,0,0, "YXZ"));
     let sundialNormal = computed(() => new Vector3(0, 1, 0).applyEuler(sundialRotation.value));
 
+    /*
+    * Help popups
+    */
+    const instance = getCurrentInstance();
+    let showThreeTimesExplanation = ref(false);
+    function toggleWalkthrough() {
+        const wt = instance?.appContext.config.globalProperties.$tours['walkthrough'];
+        if (!wt) return;
+        if (wt.isRunning.value) {
+            wt.stop()
+        } else {
+            hideAllPoppers()
+            wt.start()
+        }
+    }
+    function hideAllPoppers() {
+        instance?.appContext.config.globalProperties.$tours['walkthrough'].finish()
+        showThreeTimesExplanation.value = false;
+    }
+    function setShowThreeTimesExplanation(show: boolean) {
+        if (show) {
+            hideAllPoppers()
+        }
+        showThreeTimesExplanation.value = show
+    }
+
 
     /*
-     * Independent variables
+     * Independent variables 
      */
     /** 0 to 24*60 */
     let localTime = ref<number>(12 * 60);
@@ -386,17 +410,30 @@
             })()
         }
     }));
+
+
+
    
 
 </script>
 
 <template>
+
+    <v-tour name="walkthrough" :steps="walkthroughSteps" :options="{
+        labels: {
+            buttonSkip: 'Close',
+            buttonPrevious: 'Previous',
+            buttonNext: 'Next',
+            buttonStop: 'Finish'
+        }
+    }" />
+
     <!-- setting the canvas to window-size messes up the Line2 rendering for some reason. Instead, make it fill an entire screen div. -->
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
         <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap">
             <TresPerspectiveCamera />
             <SundialObject :latitude="latitude" :origin="sundialOrigin" :rotation="sundialRotation"
-                :gnomon-position="gnomonRelativePosition" :hour-labels="hourLines" :radius="sundialRadius"/>
+                :gnomon-position="gnomonRelativePosition" :hour-labels="hourLines" :radius="sundialRadius" />
             <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
             <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
                 <Line2 :line-width="1" :points="hourLine.points ?? [[0,0,0], [0,0,0]]" color="#FFFFFF" />
@@ -419,53 +456,67 @@
         <div id="sidebar" ref="sidebar">
             <div id="sidebarContent">
 
+                <a class="sidebar_link" @click="e => {e.preventDefault();toggleWalkthrough()}"
+                    href="javascript:void(0)">walkthrough</a>
+                ·
+                <a class="sidebar_link" href="https://github.com/tpeach90/sundials/" style="text-decoration: none"
+                    target="_blank" title="Source code on github.com">
+                    <span style="text-decoration:underline">code</span>
+                    <img src="./assets/github-mark-white.svg" style="height:1em; margin-left: 0.2em;"
+                        alt="GitHub logo" />
+                </a>
+
+
                 <!-- Position -->
                 <h2>Coordinates</h2>
-                <div class="horizontal_settings">
-                    <div class="setting">
-                        <label class="fieldTitle">Latitude/°</label>
-                        <input class="small_input" v-model="v$.latitude.$model">
-                        <div class="error" v-if="v$.latitude.$dirty && v$.latitude.$invalid">{{
-                            v$.latitude.$errors[0].$message}}</div>
+                <div data-v-walkthrough="map">
+                    <div class="horizontal_settings">
+                        <div class="setting">
+                            <label class="fieldTitle">Latitude/°</label>
+                            <input class="small_input" v-model="v$.latitude.$model">
+                            <div class="error" v-if="v$.latitude.$dirty && v$.latitude.$invalid">{{
+                                v$.latitude.$errors[0].$message}}</div>
+                        </div>
+                        <div class="setting">
+                            <label class="fieldTitle">Longitude/°</label>
+                            <input class="small_input" v-model="v$.longitude.$model">
+                            <div class="error" v-if="v$.longitude.$dirty &&v$.longitude.$invalid">{{
+                                v$.longitude.$errors[0].$message}}</div>
+                        </div>
+                        <div class="setting">
+                            <label class="fieldTitle">Time Zone/±UTC</label>
+                            <input class="small_input" v-model="v$.timeZone.$model">
+                            <div class="error" v-if="v$.timeZone.$dirty && v$.timeZone.$invalid">{{
+                                v$.timeZone.$errors[0].$message }}</div>
+                        </div>
                     </div>
-                    <div class="setting">
-                        <label class="fieldTitle">Longitude/°</label>
-                        <input class="small_input" v-model="v$.longitude.$model">
-                        <div class="error" v-if="v$.longitude.$dirty &&v$.longitude.$invalid">{{
-                            v$.longitude.$errors[0].$message}}</div>
-                    </div>
-                    <div class="setting">
-                        <label class="fieldTitle">Time Zone/±UTC</label>
-                        <input class="small_input" v-model="v$.timeZone.$model">
-                        <div class="error" v-if="v$.timeZone.$dirty && v$.timeZone.$invalid">{{
-                            v$.timeZone.$errors[0].$message }}</div>
+
+                    <!-- interactive location selector -->
+                    <div
+                        style="display: grid; grid-template-columns: min-content auto; grid-template-rows: min-content auto;">
+                        <input
+                            style="grid-row: 1; grid-column: 1; margin-right:10px; height:100%; margin-top: 0px; margin-bottom:0px;"
+                            type="range" min="-90" max="90" step="-0.1" class="slider" orient="vertical"
+                            v-model="v$.latitude.$model">
+                        <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
+                        <div style="position:relative; aspect-ratio: 2 / 1;">
+                            <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
+                                alt="An outline world map, on which the user can click to set the latitude and longitude."
+                                style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px"
+                                draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking"
+                                @click="mapImageClick" ref="mapImage">
+                            <div id="markerPoint"
+                                :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`">
+                            </div>
+                        </div>
+
+                        <input style="grid-row: 2; grid-column: 2; margin-top:10px; margin-left:0px; margin-right:0px"
+                            type="range" min="-180" max="180" step="1" class="slider" v-model="v$.longitude.$model">
                     </div>
                 </div>
 
-                <!-- interactive location selector -->
-                <div
-                    style="display: grid; grid-template-columns: min-content auto; grid-template-rows: min-content auto;">
-                    <input
-                        style="grid-row: 1; grid-column: 1; margin-right:10px; height:100%; margin-top: 0px; margin-bottom:0px;"
-                        type="range" min="-90" max="90" step="-0.1" class="slider" orient="vertical"
-                        v-model="v$.latitude.$model">
-                    <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
-                    <div style="position:relative; aspect-ratio: 2 / 1;">
-                        <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
-                            alt="An outline world map, on which the user can click to set the latitude and longitude."
-                            style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px"
-                            draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking"
-                            @click="mapImageClick" ref="mapImage">
-                        <div id="markerPoint"
-                            :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`"></div>
-                    </div>
 
-                    <input style="grid-row: 2; grid-column: 2; margin-top:10px; margin-left:0px; margin-right:0px"
-                        type="range" min="-180" max="180" step="0.1" class="slider" v-model="v$.longitude.$model">
-                </div>
-
-
-                <div class="setting">
+                <div class="setting" data-v-walkthrough="time-zone">
                     <input type="checkbox" id="autoSelectTimeZone" v-model="autoSelectTimeZone"
                         style="margin-right: 10px; display: inline;">
                     <label for="autoSelectTimeZone" class="fieldOption">Automatically set time zone</label>
@@ -473,21 +524,24 @@
 
                 <br>
                 <h2>Sundial Settings</h2>
-                <div class="setting">
-                    <label class="fieldTitle">Slant/°</label>
-                    <input class="small_input" v-model="v$.slant.$model">
-                    <div class="error" v-if="v$.slant.$dirty && v$.slant.$invalid">{{
-                        v$.slant.$errors[0].$message }}</div>
-                    <input type="range" :min="0" :max="180" step="1" class="slider" v-model="v$.slant.$model">
+                <div data-v-walkthrough="slant-and-rotation">
+
+                    <div class="setting">
+                        <label class="fieldTitle">Slant/°</label>
+                        <input class="small_input" v-model="v$.slant.$model">
+                        <div class="error" v-if="v$.slant.$dirty && v$.slant.$invalid">{{
+                            v$.slant.$errors[0].$message }}</div>
+                        <input type="range" :min="0" :max="180" step="1" class="slider" v-model="v$.slant.$model">
+                    </div>
+                    <div class="setting">
+                        <label class="fieldTitle">Rotation/°</label>
+                        <input class="small_input" v-model="v$.rotation.$model">
+                        <div class="error" v-if="v$.rotation.$dirty && v$.rotation.$invalid">{{
+                            v$.rotation.$errors[0].$message }}</div>
+                        <input type="range" :min="-180" :max="180" step="1" class="slider" v-model="v$.rotation.$model">
+                    </div>
                 </div>
-                <div class="setting">
-                    <label class="fieldTitle">Rotation/°</label>
-                    <input class="small_input" v-model="v$.rotation.$model">
-                    <div class="error" v-if="v$.rotation.$dirty && v$.rotation.$invalid">{{
-                        v$.rotation.$errors[0].$message }}</div>
-                    <input type="range" :min="-180" :max="180" step="1" class="slider" v-model="v$.rotation.$model">
-                </div>
-                <div class="setting">
+                <div class="setting" data-v-walkthrough="hour-lines">
                     <label class="fieldTitle">Hour lines</label>
                     <div class="checkboxSetting">
                         <input type="radio" id="solarLines" value="solar" v-model="hourLineStyle">
@@ -528,7 +582,7 @@
 
 
         <!-- status overlay -->
-        <div class="status">
+        <div class="status" data-v-walkthrough="status">
 
             <div style="display:flex; flex-direction: row; align-items: center">
                 <div class="time_display" v-show="!isEditingTime" @click="showTimeEntryBox"
@@ -552,6 +606,21 @@
             <div class="subtitle">{{ apparentSolarTimeText }} apparent solar time</div>
             <input type="range" min="0" max="1440" step="10" class="slider" id="time" v-model.number="localTime">
 
+            <!-- 3 times explanation -->
+            <Popper arrow placement="left" disable-click-away :show="showThreeTimesExplanation"
+                @keydown.escape="() => setShowThreeTimesExplanation(false)">
+                <template #content>
+                    <div class="popper_content">
+                        <div style="text-align: left">
+                            <ThreeTimesExplanation />
+                        </div>
+                        <button class="v-step__button" @click="() => setShowThreeTimesExplanation(false)">Close</button>
+                    </div>
+                </template>
+                <a class="overlay_link" href="javascript:void(0)"
+                    @click="() => setShowThreeTimesExplanation(!showThreeTimesExplanation)">Why are there 3 times?</a>
+            </Popper>
+
             <hr>
             <div class="subtitle" style="margin-top:13px">{{dateText}}</div>
             <input type="range" min="0" max="364" step="1" class="slider" id="day" v-model.number="day">
@@ -568,7 +637,7 @@
     import { Line2, OrbitControls } from '@tresjs/cientos'
     import { onClickOutside } from '@vueuse/core'
     import interpolate from "color-interpolate";
-    import { computed, defineComponent, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineComponent, getCurrentInstance, nextTick, onMounted, reactive, ref, watch } from 'vue'
     import SunObject from './components/SunObject.vue';
     import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
@@ -577,9 +646,12 @@
     import SundialObject from './components/SundialObject.vue';
     import CameraOffsetHelper from './components/CameraOffsetHelper.vue';
     import RendererHelper from './components/RendererHelper.vue';
+    import ThreeTimesExplanation from './components/ThreeTimesExplanation.vue';
+import {  tourSteps as walkthroughSteps } from './walkthrough';
+import Popper from 'vue3-popper';
     export default defineComponent({
         name:"App",
-        components: {SundialObject, SunObject}
+        components: {SundialObject, SunObject},
     })
 </script>
 
@@ -719,7 +791,7 @@
         font-family: monospace;
         /* margin-right: 20px;
         margin-bottom: 20px; */
-        margin:20px;
+        margin:10px;
         text-align: left;
         color:v-bind("statusTextColor");
         max-width:400px;
@@ -731,7 +803,7 @@
     }
 
     .time_display {
-        font-size: 40pt;
+        font-size: 35pt;
         width: min-content;
     }
 
@@ -746,8 +818,21 @@
     }
 
     .subtitle {
-        font-size: 12pt;
+        font-size: 11pt;
     }
+
+    .overlay_link {
+        font-size: 10pt;
+    }
+
+    .sidebar_link {
+        font-size: 10pt;
+        color: rgb(255, 106, 52)
+    }
+    .sidebar_link:active {
+        color: rgb(255, 160, 52)
+    }
+
 
     input[type=range] {
         height: 20px;
