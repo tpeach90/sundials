@@ -15,7 +15,6 @@
     const numeralDistanceFromSundialOrigin = 4;
 
     let sundialRotation = ref<Euler>(new Euler(0,0,0, "YXZ"));
-    let sundialNormal = computed(() => new Vector3(0, 1, 0).applyEuler(sundialRotation.value));
 
     /*
     * Help popups
@@ -250,166 +249,7 @@
         // make the sky look nice innit
         return interpolate(["#02407a", "#87CEEB"])(sunlightIntensity.value);
     })
-    let gnomonAbsolutePosition = computed(() => {
-        return new Vector3(...gnomonRelativePosition.value)
-            .applyEuler(sundialRotation.value)
-            .add(new Vector3(...sundialOrigin))
-    })
-    /** if there is an interection return it, and whether the intersection is in the positive direction of the gnomon vector.*/
-    let stylePlateIntersection = computed(() => {
-        // intersect the plane of the plate with the line of the sundial gnomon.
-        const plane = new Plane(sundialNormal.value, 0).translate(new Vector3(...sundialOrigin));
-        const rayDir = new Vector3(0, -(Math.sin(latitude.value * Math.PI / 180)), (Math.cos(latitude.value * Math.PI / 180)));
-        return infiniteLineIntersectWithPlaneWithDir(plane, gnomonAbsolutePosition.value, rayDir);
-    })
-    let stylePlateIntersectionPoint = computed(() => stylePlateIntersection.value?.point ?? null);
-    /** If the intersection with the plate lies on the line between the center of the gnomon and celestial north, then this value is -1. If south, then 1.*/
-    let stylePlateIntersectionPointOrder = computed(() => stylePlateIntersection.value?.dir ?? null)
 
-    // /** If the gnomon is parallel to the plate, this currently messes up the calculations. So just change the coordinates a tiny bit. VERY BAD AND LAZY CODE, @todo make not bad*/
-    // watch(stylePlateIntersectionPoint, value => {
-    //     if (!value) {
-    //         latitude.value += 0.00001 * (Math.random()+0.5) * (latitude.value > 0 ? -1: 1)
-    //         longitude.value += 0.00001 * (Math.random()+0.5) * (longitude.value > 0 ? -1: 1)
-    //     }
-    // }, {immediate: true})
-
-    
-    const hourLineHours = [...Array(24).keys()];
-
-    // The hours expressed in the range midnight to midnight, 0 to 2π
-    const hourLineTimeAngles = computed(() => hourLineHours.map(i => {
-        let offsetHour;
-        if (hourLineStyle.value == 'standard') {
-            // need to adjust for time zones
-            offsetHour = i - timeZone.value / 60 + longitude.value * 24 / 360
-        }
-        else {
-            offsetHour = i;
-        }
-        return ((((offsetHour * 60) % 1440) + 1440) % 1440) * Math.PI * 2 / 1440
-    }))
-
-    // direction vector of each hour line on the sundial
-    const hourLineDirections = computed(() => hourLineTimeAngles.value.map(timeAngle => {
-        return calculateShadowDirection(
-            timeAngle,
-            latitude.value * Math.PI / 180,
-            new Vector3(...sundialNormal.value)
-        ).multiplyScalar((stylePlateIntersectionPointOrder.value ?? 1))
-        // the scalar multiple is to fix a bug with the numerals being offset by 12 hours in some cases.
-    }));
-
-    /** If the style plate intersection point is really far away from the sundial origin, or doesn't exist, then we need to calculate the hour lines differently. */
-    const hourLinesCalculationMethod = computed(() => {
-        if (stylePlateIntersectionPoint.value && stylePlateIntersectionPoint.value.distanceTo(sundialOrigin) < 1000) {
-            return "stylePlateIntersection"
-        } else {
-            return "otherIntersection"
-        }
-    })
-
-    // the point used, in addition to the direction vector, to fully define the hour line.
-    const hourLinePoints = computed(() => {
-        switch (hourLinesCalculationMethod.value) {
-            case 'stylePlateIntersection':
-                return hourLineHours.map(() => stylePlateIntersectionPoint.value as Vector3)
-            case 'otherIntersection': {
-
-                /**
-                 * Instead of using the stylePlateIntersectionPoint for every line, use a different point for each line.
-                 * This point is at the intersection of 3 planes:
-                 * 1. The plane containing the mean sun position and style
-                 * 2. The surface of the sundial onto which the gnomon's shadow strikes (top surface)
-                 * 3. A plane that is perpendicular to the direction of the style, and which does not intersect with the 3d sundial object
-                 * */ 
-                const latRad = latitude.value * Math.PI / 180;
-                const gnomon1 = gnomonAbsolutePosition.value;
-                const gnomonDir = new Vector3(0, Math.sin(latRad), -Math.cos(latRad))
-                const gnomon2 = gnomonDir.clone().add(gnomon1);
-                // a point 1 unit off the side of the sundial plate
-                const pointOutsidePlate = gnomonDir.clone()
-                    .projectOnPlane(sundialNormal.value)
-                    .normalize()
-                    .multiplyScalar((sundialRadius + 1) * -(stylePlateIntersectionPointOrder.value ?? 1))
-                    .add(sundialOrigin);
-
-                const p2 = new Plane().setFromNormalAndCoplanarPoint(sundialNormal.value, sundialOrigin);
-                const p3 = new Plane().setFromNormalAndCoplanarPoint(gnomonDir, pointOutsidePlate);
-
-                return hourLineTimeAngles.value.map((timeAngle) => {
-
-                    const sunPos = sunPosAtEquinox(timeAngle, latRad)
-                    const p1 = new Plane().setFromCoplanarPoints(sunPos.clone().add(gnomon1), gnomon1, gnomon2);
-                    const point = vertIntersectPlanes(p1, p2, p3) ?? pointOutsidePlate;
-                    return point;
-                })
-            }
-            default:
-                // this should never happen.
-                return [];
-
-
-
-        }
-        
-    })
-
-
-
-    // lambdas of the formula plateStyleIntersectionPoint + lambda * shadowDir such that it intersects the edge of the sundial plate.
-    let hourLineSundialSphereIntersectionParameters = computed(() => {
-
-        return hourLineHours.map((hour, i) => {
-            const point = hourLinePoints.value[i];
-            const dir = hourLineDirections.value[i];
-            // to get the portion of the line we want, intersect the hour line with a sphere centered on the sundial plate origin.
-            const lambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...sundialOrigin), sundialRadius, point, dir);
-            if (lambdas.length == 0) return [];
-            // lambda = 0 is the plate/style intersection point. Negative values are on the wrong side.
-            if (lambdas[0] < 0 && lambdas[1] < 0) return [];
-            // only display positive values
-            if (lambdas[0] < 0) lambdas[0] = 0;
-            // we know that lambdas[1] > 0.
-            return lambdas
-        })
-
-    })
-
-    // vector to raise the sundial lines a bit off the plate
-    let plateToHourLineHeight = computed(() => sundialNormal.value.clone().normalize().multiplyScalar(0.007));
-
-    let hourLines = computed(() => hourLineHours.map((hour, i) => {
-        const linePoint = hourLinePoints.value[i];
-        const lineDir = hourLineDirections.value[i];
-        const lambdas = hourLineSundialSphereIntersectionParameters.value[i];
-        return {
-            hour: hour,
-            label: (() => {
-                switch (numerals.value) {
-                    case 'arabic': return hour.toString()
-                    case 'roman': return ["XXIV", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI", "XXII", "XXIII"].at(hour) ?? "";
-                }
-            })(),
-            points: lambdas.length == 0 ? null : [
-                lineDir.clone().multiplyScalar(lambdas[0]).add(linePoint).add(plateToHourLineHeight.value),
-                lineDir.clone().multiplyScalar(lambdas[1]).add(linePoint).add(plateToHourLineHeight.value),
-            ],
-            labelPoint: (() => {
-                // where the label should be displayed.
-                // Intersect the hour line with a sphere of radius smaller than the sundial radius, centered on the sundial origin
-                const labelSphereIntersectLambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...sundialOrigin), numeralDistanceFromSundialOrigin, linePoint, lineDir);
-                if (labelSphereIntersectLambdas.length == 0) return null;
-                if (labelSphereIntersectLambdas[1] < 0) return null;
-                const labelPoint = lineDir.clone().multiplyScalar(labelSphereIntersectLambdas[1]).add(linePoint);
-                // prevent numbers from getting too bunched up
-                if (hourLinesCalculationMethod.value == "stylePlateIntersection" && linePoint.distanceTo(labelPoint) < 3) return null;
-                // move to relative coordinate of sundial
-                labelPoint.sub(sundialOrigin).applyMatrix4(new Matrix4().makeRotationFromEuler(sundialRotation.value).invert())
-                return labelPoint.toArray();
-            })()
-        }
-    }));
 
 
 
@@ -432,12 +272,12 @@
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
         <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap">
             <TresPerspectiveCamera />
-            <SundialObject :latitude="latitude" :origin="sundialOrigin" :rotation="sundialRotation"
-                :gnomon-position="gnomonRelativePosition" :hour-labels="hourLines" :radius="sundialRadius" />
+            <DialAndGnomonSundial :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
+                :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition" :radius="sundialRadius"
+                :hourLineStyle="hourLineStyle" :time-zone="timeZone" :numerals="numerals"
+                :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
             <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
-            <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
-                <Line2 :line-width="1" :points="hourLine.points ?? [[0,0,0], [0,0,0]]" color="#FFFFFF" />
-            </template>
+
 
             <!-- directional light points at :target="[0,0,0]" by default -->
             <TresDirectionalLight :position="[sunCoords.x, sunCoords.y, sunCoords.z]"
@@ -634,16 +474,16 @@
 
 
 <script lang="ts">
-    import { Line2, OrbitControls } from '@tresjs/cientos'
+    import { OrbitControls } from '@tresjs/cientos'
     import { onClickOutside } from '@vueuse/core'
     import interpolate from "color-interpolate";
 import { computed, defineComponent, getCurrentInstance, nextTick, onMounted, reactive, ref, watch } from 'vue'
     import SunObject from './components/SunObject.vue';
     import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
-    import { BasicShadowMap, Vector3, Plane, Euler, Matrix4,} from 'three';
-    import { dateToString, calculateShadowDirection, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, infiniteLineIntersectWithSphereParameters, infiniteLineIntersectWithPlaneWithDir, longitudeToTimeZone, stringToTime, vertIntersectPlanes, sunPosAtEquinox } from '@/calculations';
-    import SundialObject from './components/SundialObject.vue';
+    import { BasicShadowMap, Vector3, Euler} from 'three';
+    import { dateToString, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime } from '@/calculations';
+    import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
     import CameraOffsetHelper from './components/CameraOffsetHelper.vue';
     import RendererHelper from './components/RendererHelper.vue';
     import ThreeTimesExplanation from './components/ThreeTimesExplanation.vue';
@@ -651,7 +491,7 @@ import {  tourSteps as walkthroughSteps } from './walkthrough';
 import Popper from 'vue3-popper';
     export default defineComponent({
         name:"App",
-        components: {SundialObject, SunObject},
+        components: {DialAndGnomonSundial, SunObject},
     })
 </script>
 
