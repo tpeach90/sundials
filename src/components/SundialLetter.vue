@@ -4,10 +4,11 @@
     <TresObject3D
         :position="position"
         :rotation="[-Math.PI/2, 0, 0]"
+        :visible="text != ''"
     >
         <Suspense>
             <Text3D
-                font="./fonts/PTSerif_Regular.json"
+                font="./fonts/PTSerif_Regular_Only_Numerals.json"
                 :size="0.2"
                 :bevel-enabled="false"
                 :height="0.05"
@@ -30,6 +31,7 @@
 <script lang="ts">
     import { Text3D } from '@tresjs/cientos';
     import {  PropType, defineComponent } from 'vue'
+    import {Vector3, Vector3Tuple} from "three";
     export default defineComponent({
         name:"SundialLetter",
         props:{
@@ -39,7 +41,7 @@
             },
             position: {
                 required:true,
-                type: Array as PropType<number[]>, 
+                type: Object as PropType<Vector3|Vector3Tuple>, 
             },
             castShadow: {
                 required: false,

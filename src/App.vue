@@ -9,7 +9,8 @@
      */
     const sundialOrigin = new Vector3(0, -0.5, 0);
     /** relative to sundial origin and rotation */
-    const gnomonRelativePosition = ref<number[]>([0,1,0]);
+    const gnomonRelativePosition = ref(new Vector3(0,1,0));
+    const nodusRelativePosition = ref(new Vector3(0, 1, 0))
     /** euler angle */
     const sundialRadius = 5;
     const numeralDistanceFromSundialOrigin = 4;
@@ -58,6 +59,7 @@
     let numerals = ref<"roman"|"arabic">("arabic");
     let sunRaysPassThroughEarth = ref(false);
     let hourLineStyle = ref<"solar"|"standard">("solar");
+    let sundialType = ref<"dialAndGnomon" | "pointSundial">("pointSundial")
 
 
     /*
@@ -272,10 +274,16 @@
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
         <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap">
             <TresPerspectiveCamera />
-            <DialAndGnomonSundial :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
-                :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition" :radius="sundialRadius"
-                :hourLineStyle="hourLineStyle" :time-zone="timeZone" :numerals="numerals"
+            <DialAndGnomonSundial :show="sundialType == 'dialAndGnomon'" :latitude="latitude" :longitude="longitude"
+                :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
+                :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone" :numerals="numerals"
                 :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
+
+            <PointSundial :show="sundialType == 'pointSundial'" :latitude="latitude" :longitude="longitude"
+                :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="nodusRelativePosition"
+                :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone" :numerals="numerals"
+                :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
+                
             <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
 
 
@@ -364,6 +372,20 @@
 
                 <br>
                 <h2>Sundial Settings</h2>
+
+                <div class="setting">
+                    <label class="fieldTitle">Sundial type</label>
+                    <div class="checkboxSetting">
+                        <input type="radio" id="dialAndGnomon" value="dialAndGnomon" v-model="sundialType">
+                        <label for="dialAndGnomon" class="fieldOption">Dial and gnomon</label>
+                    </div>
+                    <div class="checkboxSetting">
+                        <input type="radio" id="pointSundial" value="pointSundial" v-model="sundialType">
+                        <label for="pointSundial" class="fieldOption">Point projection</label>
+                    </div>
+                </div>
+
+                <br>
                 <div data-v-walkthrough="slant-and-rotation">
 
                     <div class="setting">
@@ -489,6 +511,7 @@ import { computed, defineComponent, getCurrentInstance, nextTick, onMounted, rea
     import ThreeTimesExplanation from './components/ThreeTimesExplanation.vue';
 import {  tourSteps as walkthroughSteps } from './walkthrough';
 import Popper from 'vue3-popper';
+import PointSundial from './components/PointSundial.vue';
     export default defineComponent({
         name:"App",
         components: {DialAndGnomonSundial, SunObject},

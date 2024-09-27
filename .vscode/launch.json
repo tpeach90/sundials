@@ -16,12 +16,8 @@
             ],
             "pathMappings": [
                 {
-                    "url": "webpack://sundials/src/calculations.ts",
-                    "path": "${workspaceFolder}/src/calculations.ts"
-                },
-                {
-                    "url": "webpack://sundials/src/App.vue",
-                    "path": "${workspaceFolder}/src/App.vue"
+                    "url": "webpack://sundials/src/",
+                    "path": "${workspaceFolder}/src/"
                 },
             ],
             "tmpDir": "${workspaceFolder}/firefox_temp"

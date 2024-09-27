@@ -303,3 +303,42 @@ export function vertIntersectPlanes(p1: Plane, p2: Plane, p3: Plane) {
     const planeIntersection = new Vector3(vectorSum.x / det, vectorSum.y / det, vectorSum.z / det);
     return planeIntersection;
 }
+
+
+export function nonNullSequence<X>(arr: (X | null)[]): X[] {
+
+    // if all nulls just return empty list
+    if (arr.filter(x => x != null).length == 0) {
+        return []
+    }
+
+    const seq = []
+
+    const firstNullLoc = arr.indexOf(null)
+    if (firstNullLoc == -1/* there are no nulls */) {
+        return [...arr] as X[]
+    }
+
+    // collect the non-null elements into an array, dealing with wrap-around too
+    for (let j = firstNullLoc; j < firstNullLoc + arr.length; j++) {
+        const el = arr[j % arr.length]
+        if (!el) {
+            // null. If the seq is non-empty then we are at the end
+            if (seq.length != 0) {
+                break
+            }
+        } else {
+            seq.push(el)
+        }
+    }
+
+    return seq
+}
+
+export function padWithRepeatedLastElement<X>(arr: X[], length: number) {
+    const numToPad = length - arr.length;
+    const lastValue = arr[arr.length - 1]
+    for (let k = 0; k < numToPad; k++) {
+        arr.push(lastValue)
+    }
+}

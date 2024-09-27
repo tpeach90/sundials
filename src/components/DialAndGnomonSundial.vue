@@ -1,9 +1,14 @@
 <!-- 3D object of the sundial -->
+ <!-- TODO: this current updates all the computed values even if it is not shown. Maybe change that? -->
 
 <script setup lang="ts">
 
     const props = defineProps(
     {
+        show: {
+            required: true,
+            type: Boolean as PropType<boolean>
+        },
         latitude: {
             required: true,
             type: Number as PropType<number>
@@ -18,8 +23,8 @@
         },
         gnomonPosition: {
             required: true,
-            default:() => [0, 1, 0],
-            type: Array as PropType<number[]>
+            default:() => new Vector3(0, 1, 0),
+            type: Object as PropType<Vector3>
         },
         origin: {
             required: true,
@@ -221,10 +226,10 @@
 
     <!-- hour lines (calculated in world coordinates)-->
     <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
-        <Line2 :line-width="1" :points="hourLine.points ?? [[0, 0, 0], [0, 0, 0]]" color="#FFFFFF" />
+        <Line2 :line-width="1" :points="(props.show && hourLine.points) ? hourLine.points : [[0, 0, 0], [0, 0, 0]]" color="#FFFFFF" />
     </template>
 
-    <TresObject3D :position="origin" :rotation="new Euler(/* @ts-ignore */...rotation.toArray())">
+    <TresObject3D :visible="props.show" :position="origin" :rotation="new Euler(/* @ts-ignore */...rotation.toArray())">
 
         <!-- plate -->
         <TresMesh :position="[0,-0.05,0]" cast-shadow receive-shadow>
@@ -232,6 +237,7 @@
             <TresMeshPhongMaterial color="#f9ecec" />
         </TresMesh>
 
+        <!-- numerals -->
         <template v-for="{hour, label, labelPoint} in hourLines" :key="hour">
             <SundialLetter :text="labelPoint ? label : ''" :position="labelPoint ?? [0,0,0]" receive-shadow />
         </template>
@@ -247,9 +253,9 @@
 
 
 <script lang="ts">
-    import { PropType, computed, defineComponent, defineProps } from 'vue'
+    import { EffectScope, PropType, computed, defineComponent, defineProps, effectScope, ref, watch } from 'vue'
     import SundialLetter from './SundialLetter.vue';
-    import { Euler, Matrix4, Plane, Vector3 } from 'three';
+    import { Euler, Matrix4, Plane, Vector3, Vector3Tuple } from 'three';
     import { calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
     import { Line2 } from '@tresjs/cientos'
 
