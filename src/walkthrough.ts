@@ -41,9 +41,19 @@ Set the location by clicking on the map, or by typing the <b>Latitude</b> and <b
         },
     },
     {
+        target: '[data-v-walkthrough="sundial-type"]',
+        content: `Choose between 2 types of sundial. <b>Traditional sundial</b> uses a <i>gnomon</i> to cast a shadow, and <b>Point shadow trace</b> uses a <i>nodus</i>, showing where the shadow of a single point falls throughout the day and year.`,
+        params: {
+            placement: 'right',
+            // enableScrolling: false,
+            highlight: true
+        },
+    },
+    {
         target: '[data-v-walkthrough="slant-and-rotation"]',
         content: `The <b>Slant</b> and <b>Rotation</b> of the sundial can be changed. 
-E.g. to simulate a wall-mounted sundial, set the <b>Slant</b> to 90° and the <b>Rotation</b> to the direction the wall is facing.`,
+E.g. to simulate a wall-mounted sundial, set the <b>Slant</b> to 90° and the <b>Rotation</b> to the direction the wall is facing.<br>
+Additionally, the <b>Gnomon height</b> (or Nodus height in Point shadow trace mode) adjusts the distance from the center of the shadow-casting object to the plate. The unit is arbitrary, because it's only the scale that matters.`,
         params: {
             placement: 'right',
             // enableScrolling: false,
@@ -53,7 +63,7 @@ E.g. to simulate a wall-mounted sundial, set the <b>Slant</b> to 90° and the <b
     {
         target: '[data-v-walkthrough="hour-lines"]',
         content: `Sundials often measure <b>Solar time</b>, where solar noon is the time at which the sun is highest in the sky.
-However, you may want the sundial to measure an approximation of standard time, taking the longitude and time zone into account. To do this, select <b>Adjusted for time zone</b>. Note that depending on the time of year the reading can be inaccurate by up to 16 min 33 s due to the varying length of the solar day (see <a href="https://en.wikipedia.org/wiki/Equation_of_time" target="_blank">https://en.wikipedia.org/wiki/Equation_of_time</a>).`,
+However, you may want the sundial to measure an approximation of standard time, taking the longitude and time zone into account. To do this, select <b>Adjusted for time zone and longitude</b>. Note that depending on the time of year the reading can be inaccurate by up to 16 min 33 s due to the varying length of the solar day (see <a href="https://en.wikipedia.org/wiki/Equation_of_time" target="_blank">https://en.wikipedia.org/wiki/Equation_of_time</a>).`,
         params: {
             placement: 'right',
             // enableScrolling: false,

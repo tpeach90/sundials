@@ -42,10 +42,10 @@
             required: true,
             type: Number as PropType<number>
         },
-        numerals: {
-            required: true,
-            type: String as PropType<"roman" | "arabic">
-        },
+        // numerals: {
+        //     required: true,
+        //     type: String as PropType<"roman" | "arabic">
+        // },
         numeralDistanceFromSundialOrigin: {
             required: true,
             type: Number as PropType<number>
@@ -195,12 +195,7 @@
         const lambdas = hourLineSundialSphereIntersectionParameters.value[i];
         return {
             hour: hour,
-            label: (() => {
-                switch (props.numerals) {
-                    case 'arabic': return hour.toString()
-                    case 'roman': return ["XXIV", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI", "XXII", "XXIII"].at(hour) ?? "";
-                }
-            })(),
+            label: hour.toString(),
             points: lambdas.length == 0 ? null : [
                 lineDir.clone().multiplyScalar(lambdas[0]).add(linePoint).add(plateToHourLineHeight.value),
                 lineDir.clone().multiplyScalar(lambdas[1]).add(linePoint).add(plateToHourLineHeight.value),
@@ -256,7 +251,7 @@
     import { EffectScope, PropType, computed, defineComponent, defineProps, effectScope, ref, watch } from 'vue'
     import SundialLetter from './SundialLetter.vue';
     import { Euler, Matrix4, Plane, Vector3, Vector3Tuple } from 'three';
-    import { calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
+    import { calculateShadowDirection, hourToRomanNumeral, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
     import { Line2 } from '@tresjs/cientos'
 
     export default defineComponent({

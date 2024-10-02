@@ -8,42 +8,12 @@
      * Config
      */
     const sundialOrigin = new Vector3(0, -0.5, 0);
-    /** relative to sundial origin and rotation */
-    const gnomonRelativePosition = ref(new Vector3(0,1,0));
-    const nodusRelativePosition = ref(new Vector3(0, 1, 0))
-    /** euler angle */
     const sundialRadius = 5;
+    const projectionRadius = 4;
     const numeralDistanceFromSundialOrigin = 4;
+    const zoomSpeed = 3;
 
-    let sundialRotation = ref<Euler>(new Euler(0,0,0, "YXZ"));
-
-    /*
-    * Help popups
-    */
-    const instance = getCurrentInstance();
-    let showThreeTimesExplanation = ref(false);
-    function toggleWalkthrough() {
-        const wt = instance?.appContext.config.globalProperties.$tours['walkthrough'];
-        if (!wt) return;
-        if (wt.isRunning.value) {
-            wt.stop()
-        } else {
-            hideAllPoppers()
-            wt.start()
-        }
-    }
-    function hideAllPoppers() {
-        instance?.appContext.config.globalProperties.$tours['walkthrough'].finish()
-        showThreeTimesExplanation.value = false;
-    }
-    function setShowThreeTimesExplanation(show: boolean) {
-        if (show) {
-            hideAllPoppers()
-        }
-        showThreeTimesExplanation.value = show
-    }
-
-
+    
     /*
      * Independent variables 
      */
@@ -56,10 +26,20 @@
     let autoSelectTimeZone = ref(true);
     /** +/- minutes UTC */
     let timeZone = ref<number>(0);
-    let numerals = ref<"roman"|"arabic">("arabic");
+    // let numerals = ref<"roman"|"arabic">("arabic");
     let sunRaysPassThroughEarth = ref(false);
-    let hourLineStyle = ref<"solar"|"standard">("solar");
-    let sundialType = ref<"dialAndGnomon" | "pointSundial">("pointSundial")
+    let hourLineStyle = ref<"solar"|"standard">("standard");
+    let sundialType = ref<"dialAndGnomon" | "pointSundial">("dialAndGnomon")
+    /**Camera position multiplier. < 1 zoom in, > 1 zoom out */
+    let currentZoomPerSecond = ref<number>(1);
+    let sundialRotation = ref<Euler>(new Euler(0,0,0, "YXZ"));
+    let gnomonHeight = ref<number>(1)
+
+    /**
+     * readonly variables
+     */
+    let cameraPosition = ref<Vector3>()
+
 
 
     /*
@@ -78,16 +58,19 @@
             
         }
     }
+    function updateTimeFromEntryBox() {
+        if (!timeEntryBox.value) return;
+
+        const newTime = stringToTime(timeEntryBox.value.value);
+        if (isNaN(newTime)) return;
+
+        localTime.value = newTime;
+    }
     function hideTimeEntryBox() {
         if (isEditingTime.value == true) {
             isEditingTime.value = false
             
-            if (!timeEntryBox.value) return;
-
-            const newTime = stringToTime(timeEntryBox.value.value);
-            if (isNaN(newTime)) return;
-
-            localTime.value = newTime;
+            updateTimeFromEntryBox()
         }
     }
     onClickOutside(timeEntryBox, hideTimeEntryBox)
@@ -102,6 +85,7 @@
         timeZone:"+0:00",
         slant:"0",
         rotation:"0",
+        gnomonHeight:"1"
     }
 
     /** used to parse time zone user input*/
@@ -135,6 +119,12 @@
             decimal,
             minValue:minValue(-180),
             maxValue:maxValue(180)
+        },
+        gnomonHeight: {
+            required,
+            decimal,
+            minValue:minValue(0.5),
+            maxValue:maxValue(3)
         }
     }))
     const v$ = useVuelidate(formRules, formState)
@@ -167,6 +157,35 @@
     watch(() => formState.rotation, newVal => {
         if (!v$.value.rotation.$invalid) sundialRotation.value.y = -Number.parseFloat(newVal) * Math.PI / 180;
     }, { immediate: true })
+    watch(() => formState.gnomonHeight, newVal => {
+        if (!v$.value.gnomonHeight.$invalid) gnomonHeight.value = Number.parseFloat(newVal);
+    }, { immediate: true })
+
+    /*
+    * Help popups
+    */
+    const instance = getCurrentInstance();
+    let showThreeTimesExplanation = ref(false);
+    function toggleWalkthrough() {
+        const wt = instance?.appContext.config.globalProperties.$tours['walkthrough'];
+        if (!wt) return;
+        if (wt.isRunning.value) {
+            wt.stop()
+        } else {
+            hideAllPoppers()
+            wt.start()
+        }
+    }
+    function hideAllPoppers() {
+        instance?.appContext.config.globalProperties.$tours['walkthrough'].finish()
+        showThreeTimesExplanation.value = false;
+    }
+    function setShowThreeTimesExplanation(show: boolean) {
+        if (show) {
+            hideAllPoppers()
+        }
+        showThreeTimesExplanation.value = show
+    }
 
     /**
      * Set the latitude and longitude when the user clicks on the map.
@@ -190,6 +209,8 @@
     function mapImageClick(e:MouseEvent) {
         setLatLngFromMap(e)
     }
+
+    // global mouse released fn
     onMounted(() => {
         window.addEventListener("mouseup", () => {
             mapImageIsBeingClicked.value = false;
@@ -219,37 +240,51 @@
     /**
      * computed values
      */
+    /** relative to sundial origin and rotation */
+    const gnomonRelativePosition = computed(() => new Vector3(0, gnomonHeight.value, 0));
+    const nodusRelativePosition = computed(() => new Vector3(0, gnomonHeight.value, 0));
     /** convert local time to UTC +0 */
-    let time = computed(() => (((localTime.value - timeZone.value) % 1440) + 1440) % 1440)
-    let sunHorizontalCoords = computed(() => calculateSunHorizontalCoords(day.value, time.value, latitude.value, longitude.value));
-    let sunCoords = computed(() => horizontalToActualCoords(sunHorizontalCoords.value.azimuth, sunHorizontalCoords.value.altitude))
+    const time = computed(() => (((localTime.value - timeZone.value) % 1440) + 1440) % 1440)
+    const sunHorizontalCoords = computed(() => calculateSunHorizontalCoords(day.value, time.value, latitude.value, longitude.value));
+    const sunCoords = computed(() => horizontalToActualCoords(sunHorizontalCoords.value.azimuth, sunHorizontalCoords.value.altitude))
     // let gnomonRotation = computed(() => (90-latitude.value)*Math.PI/180);
-    let isDaytime = computed(() => sunHorizontalCoords.value.altitude >= 0);
-    let statusTextColor = computed(() => isDaytime.value ? "black" : "white")
-    let timeText = computed(() => timeToString(localTime.value))
-    let dateText = computed(() => dateToString(day.value));
-    let meanSolarTime = computed(() => time.value + ((longitude.value/360)*24*60));
-    let meanSolarTimeText = computed(() => timeToString(meanSolarTime.value));
-    let apparentSolarTime = computed(() => {
+    const isDaytime = computed(() => sunHorizontalCoords.value.altitude >= 0);
+    const statusTextColor = computed(() => isDaytime.value ? "black" : "white")
+    const timeText = computed(() => timeToString(localTime.value))
+    const dateText = computed(() => dateToString(day.value));
+    const meanSolarTime = computed(() => time.value + ((longitude.value/360)*24*60));
+    const meanSolarTimeText = computed(() => timeToString(meanSolarTime.value));
+    const apparentSolarTime = computed(() => {
         // use the already-computed sun position. This isn't actualy dependent on the latitude irl. Just seemed the easiest way to do it here.
-        // to calculate this, rotate sun position (90°-latitude) anticlockwise about x axis (west to east axis). Then work out projected angle in the x/z (horizontal) plain.
+        // to calculate this, rotate sun position (90°-latitude) anticlockwise about x axis (west to east axis). Then work out projected angle in the x/z (horizontal) plane.
         const latRad = latitude.value * Math.PI/180;
         const timeHours = Math.atan2(sunCoords.value.y * Math.cos(latRad) + sunCoords.value.z * Math.sin(latRad), sunCoords.value.x) * 12 / Math.PI + 6;
         const timeMins = (((timeHours % 24) + 24) % 24) * 60;
         return timeMins;
     })
-    let apparentSolarTimeText = computed(() => timeToString(apparentSolarTime.value))
-    let timeZoneText = computed(() => timeZoneToString(timeZone.value))
-    let sunlightIntensity = computed(() => {
+    const apparentSolarTimeText = computed(() => timeToString(apparentSolarTime.value))
+    const timeZoneText = computed(() => timeZoneToString(timeZone.value))
+    const sunlightIntensity = computed(() => {
         // a very unscientific way of calculating the apparent sunlight intensity.
         // have a little bit of sunlight when the sun is below the horizon.
         if (sunHorizontalCoords.value.altitude > 0.1) return 1;
         if (sunHorizontalCoords.value.altitude > -0.1) return (sunHorizontalCoords.value.altitude + 0.1)/0.2;
         return 0;
     })
-    let skyColor = computed(() => {
+    const skyColor = computed(() => {
         // make the sky look nice innit
         return interpolate(["#02407a", "#87CEEB"])(sunlightIntensity.value);
+    })
+    const compassRotation = computed(() => {
+
+        if (!cameraPosition.value) {
+            return new Euler()
+        }
+
+        const cameraDistance = cameraPosition.value.distanceTo(new Vector3(0,0,0))
+        const altitude = Math.asin(cameraPosition.value.y/cameraDistance);
+        const azimouth = Math.atan2(cameraPosition.value.z, cameraPosition.value.x)
+        return new Euler(altitude - Math.PI / 2, azimouth - Math.PI/2, 0, 'XYZ')
     })
 
 
@@ -276,14 +311,13 @@
             <TresPerspectiveCamera />
             <DialAndGnomonSundial :show="sundialType == 'dialAndGnomon'" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
-                :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone" :numerals="numerals"
+                :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone"
                 :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
 
             <PointSundial :show="sundialType == 'pointSundial'" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="nodusRelativePosition"
-                :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone" :numerals="numerals"
-                :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
-                
+                :radius="projectionRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone" />
+
             <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
 
 
@@ -292,9 +326,9 @@
                 :intensity="sunRaysPassThroughEarth ? 1 : sunlightIntensity" :shadow-mapSize-width="2048"
                 :shadow-mapSize-height="2048" cast-shadow />
             <TresAmbientLight color="#AAAAAA" />
-            <OrbitControls :enable-damping="false" :rotate-speed="0.5" :enable-pan="false" :target="[0,0,0]" />
             <TresGridHelper :args="[50, 50, '#AAAAAA', '#AAAAAA']" :position="[0, -8, 0]" />
-            <CameraOffsetHelper :x-offset="-(sidebarDims.clientWidth)/2" />
+            <CameraHelper :x-offset="-(sidebarDims.clientWidth)/2" :zoom-per-second="currentZoomPerSecond"
+                @cameraPosChange="pos => cameraPosition = pos" />
             <RendererHelper />
         </TresCanvas>
     </div>
@@ -373,15 +407,29 @@
                 <br>
                 <h2>Sundial Settings</h2>
 
-                <div class="setting">
-                    <label class="fieldTitle">Sundial type</label>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="dialAndGnomon" value="dialAndGnomon" v-model="sundialType">
-                        <label for="dialAndGnomon" class="fieldOption">Dial and gnomon</label>
+                <div class="setting" data-v-walkthrough="sundial-type">
+                    <div class="checkboxSetting" style="display:flex; flex-direction:row; align-items:center">
+                        <label for="dialAndGnomon" style="margin-right:10px">
+                            <img src="./assets/sundialicon.svg" style="max-width:50px" alt="Traditional sundial icon" />
+                        </label>
+                        <div>
+                            <input type="radio" id="dialAndGnomon" value="dialAndGnomon" v-model="sundialType">
+                            <label for="dialAndGnomon" class="fieldOption">
+                                Traditional sundial
+                            </label>
+                        </div>
                     </div>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="pointSundial" value="pointSundial" v-model="sundialType">
-                        <label for="pointSundial" class="fieldOption">Point projection</label>
+                    <div class="checkboxSetting" style="display:flex; flex-direction:row; align-items:center">
+                        <label for="pointSundial" style="margin-right:10px">
+                            <img src="./assets/pointshadowtraceicon.svg" style="max-width:50px"
+                                alt="Point shadow trace icon" />
+                        </label>
+                        <div>
+                            <input type="radio" id="pointSundial" value="pointSundial" v-model="sundialType">
+                            <label for="pointSundial" class="fieldOption">
+                                Point shadow trace
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -402,20 +450,29 @@
                             v$.rotation.$errors[0].$message }}</div>
                         <input type="range" :min="-180" :max="180" step="1" class="slider" v-model="v$.rotation.$model">
                     </div>
+                    <div class="setting">
+                        <label class="fieldTitle">{{ sundialType == "dialAndGnomon" ? "Gnomon" : "Nodus" }}
+                            height</label>
+                        <input class="small_input" v-model="v$.gnomonHeight.$model">
+                        <div class="error" v-if="v$.gnomonHeight.$dirty && v$.gnomonHeight.$invalid">{{
+                            v$.gnomonHeight.$errors[0].$message }}</div>
+                        <input type="range" :min="0.5" :max="3" step="0.05" class="slider"
+                            v-model="v$.gnomonHeight.$model">
+                    </div>
                 </div>
                 <div class="setting" data-v-walkthrough="hour-lines">
                     <label class="fieldTitle">Hour lines</label>
                     <div class="checkboxSetting">
+                        <input type="radio" id="standardLines" value="standard" v-model="hourLineStyle">
+                        <label for="standardLines" class="fieldOption">Adjusted for time zone and longitude</label>
+                    </div>
+                    <div class="checkboxSetting">
                         <input type="radio" id="solarLines" value="solar" v-model="hourLineStyle">
                         <label for="solarLines" class="fieldOption">Solar time</label>
                     </div>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="standardLines" value="standard" v-model="hourLineStyle">
-                        <label for="standardLines" class="fieldOption">Adjusted for time zone</label>
-                    </div>
                 </div>
 
-                <br>
+                <!-- <br>
                 <div class="setting">
                     <label class="fieldTitle">Numerals</label>
                     <div class="checkboxSetting">
@@ -426,7 +483,7 @@
                         <input type="radio" id="roman" value="roman" v-model="numerals">
                         <label for="roman" class="fieldOption">Roman (I-XXIV)</label>
                     </div>
-                </div>
+                </div> -->
 
                 <br>
                 <h2>Misc</h2>
@@ -441,10 +498,37 @@
 
         </div>
 
+        <!-- top right controls -->
+        <div id="topRightControls">
+            <div id="compassContainer" title="North">
+                <TresCanvas>
+                    <TresAmbientLight color="#FFFFFF" :intensity="2" />
+                    <TresOrthographicCamera :position="[0, 10, 0]" :lookAt="[0, 0, 0]" :zoom="15" />
+                    <CompassObject :rotation="compassRotation" />
+                </TresCanvas>
+                <div style="position:absolute; width:100%; height:100%; top:0; left:0" title="North"></div>
+            </div>
+            <button class="zoomControl" @keydown.enter="() => { currentZoomPerSecond = 1 / zoomSpeed }"
+                @keyup.enter="() => { currentZoomPerSecond = 1 }"
+                @mousedown="() => { currentZoomPerSecond = 1 / zoomSpeed }"
+                @mouseup="() => { currentZoomPerSecond = 1 }" @pointerleave="() => { currentZoomPerSecond = 1 }"
+                @touchstart="() => { currentZoomPerSecond = 1 / zoomSpeed }"
+                @touchend="() => { currentZoomPerSecond = 1 }">
+                +
+            </button>
+            <button class="zoomControl" @keydown.enter="() => { currentZoomPerSecond = zoomSpeed }"
+                @keyup.enter="() => { currentZoomPerSecond = 1 }"
+                @mousedown="() => { currentZoomPerSecond = zoomSpeed }" @mouseup="() => { currentZoomPerSecond = 1 }"
+                @pointerleave="() => { currentZoomPerSecond = 1 }"
+                @touchstart="() => { currentZoomPerSecond = zoomSpeed }" @touchend="() => { currentZoomPerSecond = 1 }">
+                -
+            </button>
+
+        </div>
 
 
         <!-- status overlay -->
-        <div class="status" data-v-walkthrough="status">
+        <div id="status" data-v-walkthrough="status">
 
             <div style="display:flex; flex-direction: row; align-items: center">
                 <div class="time_display" v-show="!isEditingTime" @click="showTimeEntryBox"
@@ -452,7 +536,8 @@
                     {{ timeText }}
                 </div>
                 <input v-show="isEditingTime" ref="timeEntryBox" class="timeEntryBox" @blur="hideTimeEntryBox"
-                    @keydown.enter="hideTimeEntryBox" v-model="timeEntryValue">
+                    @keydown.enter="hideTimeEntryBox" @keydown.esc="hideTimeEntryBox" @input="updateTimeFromEntryBox"
+                    v-model="timeEntryValue">
                 <div v-show="!isEditingTime"
                     style="display: flex; margin-left:10px; justify-content:end; flex-direction: column; align-items: stretch; padding-block: 9px">
                     <div class="subtitle">local standard time</div>
@@ -461,8 +546,6 @@
 
 
             </div>
-
-
 
             <div class="subtitle">{{ meanSolarTimeText }} mean solar time</div>
             <div class="subtitle">{{ apparentSolarTimeText }} apparent solar time</div>
@@ -480,7 +563,8 @@
                     </div>
                 </template>
                 <a class="overlay_link" href="javascript:void(0)"
-                    @click="() => setShowThreeTimesExplanation(!showThreeTimesExplanation)">Why are there 3 times?</a>
+                    @click="() => setShowThreeTimesExplanation(!showThreeTimesExplanation)">Why are there 3
+                    times?</a>
             </Popper>
 
             <hr>
@@ -489,6 +573,8 @@
 
         </div>
     </div>
+
+
 
 
 
@@ -506,12 +592,13 @@ import { computed, defineComponent, getCurrentInstance, nextTick, onMounted, rea
     import { BasicShadowMap, Vector3, Euler} from 'three';
     import { dateToString, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime } from '@/calculations';
     import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
-    import CameraOffsetHelper from './components/CameraOffsetHelper.vue';
+    import CameraHelper from './components/CameraHelper.vue';
     import RendererHelper from './components/RendererHelper.vue';
     import ThreeTimesExplanation from './components/ThreeTimesExplanation.vue';
 import {  tourSteps as walkthroughSteps } from './walkthrough';
 import Popper from 'vue3-popper';
 import PointSundial from './components/PointSundial.vue';
+import CompassObject from "./components/CompassObject.vue"
     export default defineComponent({
         name:"App",
         components: {DialAndGnomonSundial, SunObject},
@@ -644,24 +731,18 @@ import PointSundial from './components/PointSundial.vue';
         opacity: 1; /* Fully shown on mouse-over */
     }
 
-
-    .status {
-        /* position: absolute; */
-        /* bottom:0;
-        right:0; */
+    #status {
         pointer-events:auto;
         flex:1;
         font-family: monospace;
-        /* margin-right: 20px;
-        margin-bottom: 20px; */
-        margin:10px;
+        padding:10px;
         text-align: left;
         color:v-bind("statusTextColor");
         max-width:400px;
         width:100%
     }
 
-    .status hr {
+    #status hr {
         border-color: v-bind("statusTextColor");
     }
 
@@ -694,6 +775,27 @@ import PointSundial from './components/PointSundial.vue';
     }
     .sidebar_link:active {
         color: rgb(255, 160, 52)
+    }
+
+    .zoomControl {
+        /* display: inline-block; */
+        display:flex;
+        align-items: center;
+        justify-content: center;
+        aspect-ratio: 1/1;
+        min-height : 25px;
+        background-color:brown;
+        pointer-events: all;
+        margin:5px;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size:15pt;
+        opacity:1;
+        user-select: none;
+        color:white
+    }
+    .zoomControl:hover {
+        opacity:0.5
     }
 
 
@@ -733,4 +835,21 @@ import PointSundial from './components/PointSundial.vue';
         aspect-ratio: 2 / 1;
         user-select: none
     }
+
+    #compassContainer {
+        width:50px;
+        height:50px;
+        position:relative
+    }
+
+    #topRightControls {
+        position:absolute;
+        top:0;
+        right:0;
+        padding:10px;
+        display:flex;
+        align-items:center;
+        flex-direction:column
+    }
+
 </style>

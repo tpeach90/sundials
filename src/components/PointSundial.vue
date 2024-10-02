@@ -41,12 +41,8 @@ const props = defineProps(
             required: true,
             type: Number as PropType<number>
         },
-        numerals: {
-            required: true,
-            type: String as PropType<"roman" | "arabic">
-        },
 
-    });
+    })
 
     const gnomonAbsolutePosition = computed(() => {
         return new Vector3(...props.gnomonPosition)
@@ -61,8 +57,19 @@ const props = defineProps(
     const plateToPlotVector = computed(() => sundialNormal.value.clone().normalize().multiplyScalar(0.007))
 
     function projectionOnPlate(hour:number, day:number) : Vector3 | null {
+
+        // for solar time, just pretend the longitude is 0
+        const longitude = (() => {
+            switch(props.hourLineStyle) {
+                case "solar":
+                    return 0
+                case "standard":
+                    return props.longitude
+            }
+        })()
+
         // sun pos
-        const {azimuth, altitude} = calculateSunHorizontalCoords(day, hour*60, props.latitude, props.longitude)
+        const { azimuth, altitude } = calculateSunHorizontalCoords(day, hour * 60, props.latitude, longitude)
         const sunPos = horizontalToActualCoords(azimuth, altitude)
 
         // shadow projection on plate
@@ -125,7 +132,6 @@ const props = defineProps(
             })
 
         }
-
         return hourLines
     })
 
@@ -163,8 +169,144 @@ const props = defineProps(
         })
     )
 
+    // define clipping planes for the plot.
+    const relativeClippingPlanesArgs = computed(() => [
+        {
+            normal: new Vector3(1, 0, 0),
+            coplanarPoint: new Vector3(-props.radius, 0, 0).add(props.origin)
+        },
+        {
+            normal: new Vector3(-1, 0, 0),
+            coplanarPoint: new Vector3(props.radius, 0, 0).add(props.origin)
+        },
+        {
+            normal: new Vector3(0, 0, 1),
+            coplanarPoint: new Vector3(0, 0, -props.radius).add(props.origin)
+        },
+        {
+            normal: new Vector3(0, 0, -1),
+            coplanarPoint: new Vector3(0, 0, props.radius).add(props.origin)
+        },
+    ]);
+
+    const clippingPlanes = computed(() => {
+
+        const planes : Plane[] = []
+
+        for (let {normal, coplanarPoint} of relativeClippingPlanesArgs.value) {
+            planes.push(new Plane().setFromNormalAndCoplanarPoint(
+                normal.clone()
+                    .applyEuler(props.rotation),
+                coplanarPoint.clone()
+                    .add(props.origin.clone().multiplyScalar(-1))
+                    .applyEuler(props.rotation)
+                    .add(props.origin),
+            ))
+        }
+
+        return planes
+    })
 
 
+
+
+
+    // The hours expressed in the range midnight to midnight, 0 to 2π
+    const hourLineTimeAngles = computed(() => hourLinePlotHours.map(i => {
+        let offsetHour;
+        if (props.hourLineStyle == 'standard') {
+            // need to adjust for time zones
+            offsetHour = i - props.timeZone / 60 + props.longitude * 24 / 360
+        }
+        else {
+            offsetHour = i;
+        }
+        return ((((offsetHour * 60) % 1440) + 1440) % 1440) * Math.PI * 2 / 1440
+    }))
+
+    
+    // work out what solstice line to put the numerals on.
+    const solsticeLineOfNumerals = computed(() => {
+        // make a ray starting from the nodus, pointing towards the north start.
+        // if this ray intersercts the sundial plate, then use the winter solstice. Otherwise use the summer solstice.
+        const ray = new Ray(gnomonAbsolutePosition.value, new Vector3(0, Math.cos(rad(90-props.latitude)), -Math.sin(rad(90-props.latitude))))
+        const intersect = ray.intersectsPlane(platePlane.value)
+        return intersect ? "winter" : "summer"
+    })
+    
+    // direction vector of each hour line on the sundial
+    // need this to work out where to position the digits
+    const hourLineDirections = computed(() => hourLineTimeAngles.value.map(timeAngle => {
+        return calculateShadowDirection(
+            timeAngle,
+            props.latitude * Math.PI / 180,
+            sundialNormal.value
+        ).normalize().multiplyScalar(0.2 * (solsticeLineOfNumerals.value == "winter" ? 1 : -1))
+    }));
+    const hourLineDigitMaxDistanceToInsideBorder = 0.15;
+
+    // world coords
+    const hourLineDigitPositions = computed(() => {
+
+        const day = (() => {
+            switch (solsticeLineOfNumerals.value) {
+                case "winter":
+                    return 354
+                case "summer":
+                    return 171
+            }
+        })()
+
+        return hourLinePlotHours.map((hour, i) => {
+            let pos :Vector3|undefined;
+            if (props.hourLineStyle == "standard") {
+                // projectOnPlate handles the longitude. don't need to adjust for that here
+                pos = projectionOnPlate((((hourLinePlotHours[i] - props.timeZone/60) % 24) + 24)%24, day)?.add(hourLineDirections.value[i]);
+            } else {
+                pos = projectionOnPlate(hourLineTimeAngles.value[i] * 12/Math.PI, day)?.add(hourLineDirections.value[i]);
+            }
+
+            if (!pos) return null
+
+            // check if pos is on the plate
+            // reuse the clipping planes
+            for (let plane of clippingPlanes.value) {
+                const p = plane.clone()
+                p.constant -= hourLineDigitMaxDistanceToInsideBorder;
+                if (p.distanceToPoint(pos) < 0) {
+                    return null
+                }
+            }
+
+            return pos
+
+        })
+
+    })
+
+    // relative coords
+    const hourLineDigits = computed(() => {
+
+        return hourLinePlotHours.map((hour, i) => ({
+            hour:hour,
+            label:hourLineDigitPositions.value[i] ? hour.toString() : "",
+            // transform to relative coords
+            pos: hourLineDigitPositions.value[i]
+                ?.sub(props.origin)
+                .applyMatrix4(new Matrix4().makeRotationFromEuler(props.rotation).invert())
+                ?? new Vector3(0,0,0)
+        }))
+    })
+
+    const fontSize = computed(() => {
+        // changing the text size causes a big lag spike
+        // only do it when this sundial is actually shown
+        if (!props.show) return 0.12
+
+        const nodusHeight = new Vector3(0,0,0).distanceTo(props.gnomonPosition)
+        if (nodusHeight < 1) return 0.055
+        else return 0.12
+    })
 
 
 
@@ -175,10 +317,12 @@ const props = defineProps(
     <!-- plot -->
     <TresObject3D :visible="props.show">
         <template v-for="hourLine of hourLinePlot" :key="hourLine.hour">
-            <Line2 :line-width="1" :points="hourLine.line" color="#ffffff" />
+            <Line2Clipped :line-width="1" :points="hourLine.line" color="#ffffff"
+                :clipping-planes="clippingPlanes" />
         </template>
         <template v-for="solsticeLine of solsticePlot" :key="solsticeLine.date">
-            <Line2 :line-width="1" :points="solsticeLine.line" color="#ffffff" />
+            <Line2Clipped :line-width="1" :points="solsticeLine.line" color="#ffffff"
+                :clipping-planes="clippingPlanes" />
         </template>
     </TresObject3D>
 
@@ -189,6 +333,13 @@ const props = defineProps(
             <TresBoxGeometry :args="[radius*2,0.1, radius*2]" />
             <TresMeshPhongMaterial color="#f9ecec" />
         </TresMesh>
+
+        <!-- digits -->
+        <template v-for="digit of hourLineDigits" :key="digit.hour">
+            <TresObject3D :visible="digit.label != ''">
+                <SundialLetter receive-shadow :position="digit.pos" :text="digit.label" :size="fontSize"/>
+            </TresObject3D>
+        </template>
 
         <!-- nodus -->
         <TresMesh :position="new Vector3(...props.gnomonPosition)" cast-shadow receive-shadow>
@@ -206,10 +357,12 @@ const props = defineProps(
 
 
 <script lang="ts">
-import { PropType, computed, defineComponent, defineProps } from 'vue'
-import { Euler, Plane, Ray, Vector3 } from 'three';
-import { Line2 } from '@tresjs/cientos';
-import { calculateSunHorizontalCoords, horizontalToActualCoords, nonNullSequence, padWithRepeatedLastElement } from '@/calculations';
+import { PropType, computed, defineComponent, defineProps, ref, watch } from 'vue'
+import { Euler, Matrix4, Plane, Ray, Vector3 } from 'three';
+import Line2Clipped from './Line2FromCientosPackageAndItsTheSameButYouCanAlsoUseClippingPlanesSoItsNot.vue';
+import {Line2} from "@tresjs/cientos";
+import { calculateShadowDirection, calculateSunHorizontalCoords, horizontalToActualCoords, nonNullSequence, padWithRepeatedLastElement, rad } from '@/calculations';
+import SundialLetter from './SundialLetter.vue';
 
 export default defineComponent({
     name: "PointSundial",

@@ -9,9 +9,9 @@
         <Suspense>
             <Text3D
                 font="./fonts/PTSerif_Regular_Only_Numerals.json"
-                :size="0.2"
+                :size="size"
                 :bevel-enabled="false"
-                :height="0.05"
+                :height="0.03 * size/0.2"
                 :cast-shadow="castShadow"
                 :receive-shadow="receiveShadow"
                 need-updates
@@ -52,6 +52,11 @@
                 required: false,
                 default: false,
                 type: Boolean as PropType<boolean>
+            },
+            size: {
+                required:false,
+                default: 0.2,
+                type: Number as PropType<number>
             }
         },
         components:{Text3D}

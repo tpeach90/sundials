@@ -342,3 +342,7 @@ export function padWithRepeatedLastElement<X>(arr: X[], length: number) {
         arr.push(lastValue)
     }
 }
+
+export function hourToRomanNumeral(hour: number) {
+    return ["XXIV", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI", "XXII", "XXIII"][hour] ?? ""
+}

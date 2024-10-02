@@ -1,25 +1,23 @@
+const { templateCompilerOptions } = require('@tresjs/core')
 const { defineConfig } = require('@vue/cli-service')
 module.exports = defineConfig({
   publicPath: "/sundials/",
   transpileDependencies: true,
-  // chainWebpack: config => {
-  //   config.module
-  //     .rule('vue')
-  //     .use('vue-loader')
-  //     .tap(options => ({
-  //       ...options,
-  //       compilerOptions: {
-  //         // treat any tag that starts with Tres as custom elements
-  //         // prevent warnings in the browser console in development mode
-  //         // isCustomElement: tag => tag.startsWith('Tres')
-  //       }
-  //     }))
-  // }
-  // chainWebpack: config => {
-  //   config.plugin('html')
-  //     .tap(args => {
-  //       args[0].minify = false
-  //       return args
-  //     })
-  // }
+  chainWebpack: config => {
+
+    // disable "Failed resolve component: TresComponent..." warnings
+    config.module
+      .rule("vue")
+      .use('vue-loader')
+      .tap((options) => ({
+        ...options,
+        ...templateCompilerOptions.template,
+      }))
+
+    config.plugin('html')
+      .tap(args => {
+        args[0].minify = false  
+        return args
+      })
+  },
 })
