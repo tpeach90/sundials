@@ -287,8 +287,12 @@
         return new Euler(altitude - Math.PI / 2, azimouth - Math.PI/2, 0, 'XYZ')
     })
 
-
-
+    // move all inline processing stuff in the <Tres...> tag props here because this is necessary for some reason to make tresjs render frames on demand
+    const showDialAndGnomonSundial = computed(() => sundialType.value === "dialAndGnomon")
+    const showPointSundial = computed(() => sundialType.value === "pointSundial")
+    const sunCoordsArray = computed<[number, number, number]>(() => [sunCoords.value.x, sunCoords.value.y, sunCoords.value.z])
+    const directionalLightIntensity = computed(() => sunRaysPassThroughEarth.value ? 1 : sunlightIntensity.value)
+    const cameraXOffset = computed(() => -(sidebarDims.value.clientWidth)/2)
 
    
 
@@ -307,27 +311,27 @@
 
     <!-- setting the canvas to window-size messes up the Line2 rendering for some reason. Instead, make it fill an entire screen div. -->
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
-        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap">
+        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand">
             <TresPerspectiveCamera />
-            <DialAndGnomonSundial :show="sundialType == 'dialAndGnomon'" :latitude="latitude" :longitude="longitude"
+            <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
                 :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone"
                 :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
 
-            <PointSundial :show="sundialType == 'pointSundial'" :latitude="latitude" :longitude="longitude"
+            <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="nodusRelativePosition"
                 :radius="projectionRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone" />
 
-            <SunObject :position="[sunCoords.x, sunCoords.y, sunCoords.z]" />
+            <SunObject :position="sunCoords" />
 
 
             <!-- directional light points at :target="[0,0,0]" by default -->
-            <TresDirectionalLight :position="[sunCoords.x, sunCoords.y, sunCoords.z]"
-                :intensity="sunRaysPassThroughEarth ? 1 : sunlightIntensity" :shadow-mapSize-width="2048"
+            <TresDirectionalLight :position="sunCoordsArray"
+                :intensity="directionalLightIntensity" :shadow-mapSize-width="2048"
                 :shadow-mapSize-height="2048" cast-shadow />
             <TresAmbientLight color="#AAAAAA" />
             <TresGridHelper :args="[50, 50, '#AAAAAA', '#AAAAAA']" :position="[0, -8, 0]" />
-            <CameraHelper :x-offset="-(sidebarDims.clientWidth)/2" :zoom-per-second="currentZoomPerSecond"
+            <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
                 @cameraPosChange="pos => cameraPosition = pos" />
             <RendererHelper />
         </TresCanvas>
@@ -501,7 +505,7 @@
         <!-- top right controls -->
         <div id="topRightControls">
             <div id="compassContainer" title="North">
-                <TresCanvas>
+                <TresCanvas render-mode="on-demand">
                     <TresAmbientLight color="#FFFFFF" :intensity="2" />
                     <TresOrthographicCamera :position="[0, 10, 0]" :lookAt="[0, 0, 0]" :zoom="15" />
                     <CompassObject :rotation="compassRotation" />

@@ -10,7 +10,7 @@ import { OrbitControls } from 'three-stdlib';
 extend({ OrbitControls })
 
 
-const {camera,  sizes, renderer} = useTresContext();
+const {camera,  sizes, renderer, invalidate} = useTresContext();
 
 const props = defineProps({
     xOffset: {
@@ -44,7 +44,14 @@ watch(() => [sizes.width.value, sizes.height.value, props.xOffset], () => {
 
 
 // adjust zoom
-const { onBeforeRender } = useLoop()
+const { onBeforeRender, pause, resume } = useLoop()
+watch(() => props.zoomPerSecond, value => {
+    if (value == 1) {
+        pause()
+    } else {
+        resume()
+    }
+}, {immediate: true})
 onBeforeRender(({ delta }) => {
     if (camera.value) {
         const zoomThisFrame = Math.pow(props.zoomPerSecond, delta)
@@ -60,6 +67,7 @@ watch(() => [
     camera.value?.position.z,
 ], () => {
     if (camera.value) {
+        invalidate()
         emit("cameraPosChange", camera.value.position.clone())
     }
 }, {immediate: true})

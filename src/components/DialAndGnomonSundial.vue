@@ -3,6 +3,8 @@
 
 <script setup lang="ts">
 
+import SundialLetter from './SundialLetter.vue';
+
     const props = defineProps(
     {
         show: {
@@ -23,7 +25,6 @@
         },
         gnomonPosition: {
             required: true,
-            default:() => new Vector3(0, 1, 0),
             type: Object as PropType<Vector3>
         },
         origin: {
@@ -193,48 +194,60 @@
         const linePoint = hourLinePoints.value[i];
         const lineDir = hourLineDirections.value[i];
         const lambdas = hourLineSundialSphereIntersectionParameters.value[i];
+
+        const labelPoint = (() => {
+            // where the label should be displayed.
+            // Intersect the hour line with a sphere of radius smaller than the sundial radius, centered on the sundial origin
+            const labelSphereIntersectLambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...props.origin), props.numeralDistanceFromSundialOrigin, linePoint, lineDir);
+            if (labelSphereIntersectLambdas.length == 0) return null;
+            if (labelSphereIntersectLambdas[1] < 0) return null;
+            const labelPoint = lineDir.clone().multiplyScalar(labelSphereIntersectLambdas[1]).add(linePoint);
+            // prevent numbers from getting too bunched up
+            if (hourLinesCalculationMethod.value == "stylePlateIntersection" && linePoint.distanceTo(labelPoint) < 3) return null;
+            // move to relative coordinate of sundial
+            labelPoint.sub(props.origin).applyMatrix4(new Matrix4().makeRotationFromEuler(props.rotation).invert())
+            return labelPoint.toArray();
+        })()
+
+
         return {
             hour: hour,
-            label: hour.toString(),
-            points: lambdas.length == 0 ? null : [
+            label: labelPoint ? hour.toString() : "",
+            points: (lambdas.length == 0) 
+            ? [new Vector3(0, 0, 0), new Vector3(0, 0, 0)] 
+            : [
                 lineDir.clone().multiplyScalar(lambdas[0]).add(linePoint).add(plateToHourLineHeight.value),
                 lineDir.clone().multiplyScalar(lambdas[1]).add(linePoint).add(plateToHourLineHeight.value),
             ],
-            labelPoint: (() => {
-                // where the label should be displayed.
-                // Intersect the hour line with a sphere of radius smaller than the sundial radius, centered on the sundial origin
-                const labelSphereIntersectLambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...props.origin), props.numeralDistanceFromSundialOrigin, linePoint, lineDir);
-                if (labelSphereIntersectLambdas.length == 0) return null;
-                if (labelSphereIntersectLambdas[1] < 0) return null;
-                const labelPoint = lineDir.clone().multiplyScalar(labelSphereIntersectLambdas[1]).add(linePoint);
-                // prevent numbers from getting too bunched up
-                if (hourLinesCalculationMethod.value == "stylePlateIntersection" && linePoint.distanceTo(labelPoint) < 3) return null;
-                // move to relative coordinate of sundial
-                labelPoint.sub(props.origin).applyMatrix4(new Matrix4().makeRotationFromEuler(props.rotation).invert())
-                return labelPoint.toArray();
-            })()
+            labelPoint: labelPoint ?? [0,0,0]
         }
     }));
+
+    const rotationCopy = computed(() => props.rotation.clone())
+    const plateGeometryArgs = computed<[number, number, number]>(() => [props.radius, props.radius, 0.1])
 </script>
 
 <template>
 
     <!-- hour lines (calculated in world coordinates)-->
-    <template v-for="hourLine in hourLines" v-bind:key="hourLine.hour">
-        <Line2 :line-width="1" :points="(props.show && hourLine.points) ? hourLine.points : [[0, 0, 0], [0, 0, 0]]" color="#FFFFFF" />
-    </template>
+    <TresObject3D :visible="show">
+        <template v-for="{points, hour} in hourLines" v-bind:key="hour">
+            <Line2 :line-width="1" :points="points" color="#FFFFFF" />
+        </template>
+    </TresObject3D>
 
-    <TresObject3D :visible="props.show" :position="origin" :rotation="new Euler(/* @ts-ignore */...rotation.toArray())">
+    <!-- some previous jank: new Euler(/* @ts-ignore */...rotation.toArray()) -->
+    <TresObject3D :visible="props.show" :position="origin" :rotation="rotationCopy">
 
         <!-- plate -->
         <TresMesh :position="[0,-0.05,0]" cast-shadow receive-shadow>
-            <TresCylinderGeometry :args="[radius, radius, 0.1]" />
+            <TresCylinderGeometry :args="plateGeometryArgs" />
             <TresMeshPhongMaterial color="#f9ecec" />
         </TresMesh>
 
         <!-- numerals -->
-        <template v-for="{hour, label, labelPoint} in hourLines" :key="hour">
-            <SundialLetter :text="labelPoint ? label : ''" :position="labelPoint ?? [0,0,0]" receive-shadow />
+        <template v-for="hourLine in hourLines" :key="hourLine.hour">
+            <SundialLetter :text="hourLine.label" :position="hourLine.labelPoint" receive-shadow />
         </template>
 
         <!-- Style/gnomon -->
@@ -249,15 +262,14 @@
 
 <script lang="ts">
     import { EffectScope, PropType, computed, defineComponent, defineProps, effectScope, ref, watch } from 'vue'
-    import SundialLetter from './SundialLetter.vue';
-    import { Euler, Matrix4, Plane, Vector3, Vector3Tuple } from 'three';
+    import { Euler, Matrix4, Plane, Vector3 } from 'three';
     import { calculateShadowDirection, hourToRomanNumeral, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
     import { Line2 } from '@tresjs/cientos'
 
     export default defineComponent({
         name:"DialAndGnomonSundial",
         components: {
-            SundialLetter,
+            // SundialLetter,
         },
     })
 </script>

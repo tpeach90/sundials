@@ -22,7 +22,6 @@ const props = defineProps(
         },
         gnomonPosition: {
             required: true,
-            default: () => new Vector3(0, 1, 0),
             type: Object as PropType<Vector3>
         },
         origin: {
@@ -308,7 +307,10 @@ const props = defineProps(
         else return 0.12
     })
 
-
+const plateGeometryArgs = computed<[number, number, number]>(() => [props.radius * 2, 0.1, props.radius * 2])
+const rotationCopy = computed(() => props.rotation.clone())
+const lineToNodusPoints = computed<[number, number, number][]>(() => [[0,0,0], props.gnomonPosition.toArray()])
+const gnomonPositionCopy = computed(() => props.gnomonPosition.clone())
 
 </script>
 
@@ -326,29 +328,27 @@ const props = defineProps(
         </template>
     </TresObject3D>
 
-    <TresObject3D :visible="props.show" :position="origin" :rotation="new Euler(/* @ts-ignore */...rotation.toArray())">
+    <TresObject3D :visible="props.show" :position="origin" :rotation="rotationCopy">
 
         <!-- plate -->
         <TresMesh :position="[0, -0.05, 0]" cast-shadow receive-shadow>
-            <TresBoxGeometry :args="[radius*2,0.1, radius*2]" />
+            <TresBoxGeometry :args="plateGeometryArgs" />
             <TresMeshPhongMaterial color="#f9ecec" />
         </TresMesh>
 
         <!-- digits -->
         <template v-for="digit of hourLineDigits" :key="digit.hour">
-            <TresObject3D :visible="digit.label != ''">
-                <SundialLetter receive-shadow :position="digit.pos" :text="digit.label" :size="fontSize"/>
-            </TresObject3D>
+            <SundialLetter receive-shadow :position="digit.pos" :text="digit.label" :size="fontSize"/>
         </template>
 
         <!-- nodus -->
-        <TresMesh :position="new Vector3(...props.gnomonPosition)" cast-shadow receive-shadow>
+        <TresMesh :position="gnomonPositionCopy" cast-shadow receive-shadow>
             <TresSphereGeometry :args="[0.08, 20, 16]" />
             <TresMeshPhongMaterial color="#b7b7b7" />
         </TresMesh>
 
         <!-- line to nodus -->
-        <Line2 :line-width="2" :points="[[0,0,0], props.gnomonPosition.toArray()]" color="#ffffff" />
+        <Line2 :line-width="2" :points="lineToNodusPoints" color="#ffffff" />
 
 
     </TresObject3D>
