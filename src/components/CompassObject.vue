@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { GLTFModel } from '@tresjs/cientos';
 import {defineProps, PropType, computed} from 'vue';
-import {CompressedTextureLoader, Euler} from 'three';
+import {Euler} from 'three';
 
 const props = defineProps({
     rotation: {

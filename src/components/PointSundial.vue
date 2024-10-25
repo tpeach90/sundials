@@ -43,15 +43,25 @@ const props = defineProps(
 
     })
 
+
+    // copy props only when visible, then do calculations on the copied props.
+    const freezeProps = ref({ ...props })
+    watch(props, (newValue) => {
+        if (newValue.show) {
+            freezeProps.value = { ...newValue }
+        }
+    }, { immediate: true })
+
+
     const gnomonAbsolutePosition = computed(() => {
-        return new Vector3(...props.gnomonPosition)
-            .applyEuler(props.rotation)
-            .add(new Vector3(...props.origin))
+        return new Vector3(...freezeProps.value.gnomonPosition)
+            .applyEuler(freezeProps.value.rotation)
+            .add(new Vector3(...freezeProps.value.origin))
     })
-    let sundialNormal = computed(() => new Vector3(0, 1, 0).applyEuler(props.rotation));
+    let sundialNormal = computed(() => new Vector3(0, 1, 0).applyEuler(freezeProps.value.rotation));
 
 
-    const platePlane = computed(() => new Plane(sundialNormal.value, 0).translate(new Vector3(...props.origin)))
+    const platePlane = computed(() => new Plane(sundialNormal.value, 0).translate(new Vector3(...freezeProps.value.origin)))
     // vector used to raise the plot above the surface.
     const plateToPlotVector = computed(() => sundialNormal.value.clone().normalize().multiplyScalar(0.007))
 
@@ -59,16 +69,16 @@ const props = defineProps(
 
         // for solar time, just pretend the longitude is 0
         const longitude = (() => {
-            switch(props.hourLineStyle) {
+            switch(freezeProps.value.hourLineStyle) {
                 case "solar":
                     return 0
                 case "standard":
-                    return props.longitude
+                    return freezeProps.value.longitude
             }
         })()
 
         // sun pos
-        const { azimuth, altitude } = calculateSunHorizontalCoords(day, hour * 60, props.latitude, longitude)
+        const { azimuth, altitude } = calculateSunHorizontalCoords(day, hour * 60, freezeProps.value.latitude, longitude)
         const sunPos = horizontalToActualCoords(azimuth, altitude)
 
         // shadow projection on plate
@@ -172,19 +182,19 @@ const props = defineProps(
     const relativeClippingPlanesArgs = computed(() => [
         {
             normal: new Vector3(1, 0, 0),
-            coplanarPoint: new Vector3(-props.radius, 0, 0).add(props.origin)
+            coplanarPoint: new Vector3(-freezeProps.value.radius, 0, 0).add(freezeProps.value.origin)
         },
         {
             normal: new Vector3(-1, 0, 0),
-            coplanarPoint: new Vector3(props.radius, 0, 0).add(props.origin)
+            coplanarPoint: new Vector3(freezeProps.value.radius, 0, 0).add(freezeProps.value.origin)
         },
         {
             normal: new Vector3(0, 0, 1),
-            coplanarPoint: new Vector3(0, 0, -props.radius).add(props.origin)
+            coplanarPoint: new Vector3(0, 0, -freezeProps.value.radius).add(freezeProps.value.origin)
         },
         {
             normal: new Vector3(0, 0, -1),
-            coplanarPoint: new Vector3(0, 0, props.radius).add(props.origin)
+            coplanarPoint: new Vector3(0, 0, freezeProps.value.radius).add(freezeProps.value.origin)
         },
     ]);
 
@@ -195,11 +205,11 @@ const props = defineProps(
         for (let {normal, coplanarPoint} of relativeClippingPlanesArgs.value) {
             planes.push(new Plane().setFromNormalAndCoplanarPoint(
                 normal.clone()
-                    .applyEuler(props.rotation),
+                    .applyEuler(freezeProps.value.rotation),
                 coplanarPoint.clone()
-                    .add(props.origin.clone().multiplyScalar(-1))
-                    .applyEuler(props.rotation)
-                    .add(props.origin),
+                    .add(freezeProps.value.origin.clone().multiplyScalar(-1))
+                    .applyEuler(freezeProps.value.rotation)
+                    .add(freezeProps.value.origin),
             ))
         }
 
@@ -213,9 +223,9 @@ const props = defineProps(
     // The hours expressed in the range midnight to midnight, 0 to 2π
     const hourLineTimeAngles = computed(() => hourLinePlotHours.map(i => {
         let offsetHour;
-        if (props.hourLineStyle == 'standard') {
+        if (freezeProps.value.hourLineStyle == 'standard') {
             // need to adjust for time zones
-            offsetHour = i - props.timeZone / 60 + props.longitude * 24 / 360
+            offsetHour = i - freezeProps.value.timeZone / 60 + freezeProps.value.longitude * 24 / 360
         }
         else {
             offsetHour = i;
@@ -228,7 +238,7 @@ const props = defineProps(
     const solsticeLineOfNumerals = computed(() => {
         // make a ray starting from the nodus, pointing towards the north start.
         // if this ray intersercts the sundial plate, then use the winter solstice. Otherwise use the summer solstice.
-        const ray = new Ray(gnomonAbsolutePosition.value, new Vector3(0, Math.cos(rad(90-props.latitude)), -Math.sin(rad(90-props.latitude))))
+        const ray = new Ray(gnomonAbsolutePosition.value, new Vector3(0, Math.cos(rad(90-freezeProps.value.latitude)), -Math.sin(rad(90-freezeProps.value.latitude))))
         const intersect = ray.intersectsPlane(platePlane.value)
         return intersect ? "winter" : "summer"
     })
@@ -238,7 +248,7 @@ const props = defineProps(
     const hourLineDirections = computed(() => hourLineTimeAngles.value.map(timeAngle => {
         return calculateShadowDirection(
             timeAngle,
-            props.latitude * Math.PI / 180,
+            freezeProps.value.latitude * Math.PI / 180,
             sundialNormal.value
         ).normalize().multiplyScalar(0.2 * (solsticeLineOfNumerals.value == "winter" ? 1 : -1))
     }));
@@ -258,9 +268,9 @@ const props = defineProps(
 
         return hourLinePlotHours.map((hour, i) => {
             let pos :Vector3|undefined;
-            if (props.hourLineStyle == "standard") {
+            if (freezeProps.value.hourLineStyle == "standard") {
                 // projectOnPlate handles the longitude. don't need to adjust for that here
-                pos = projectionOnPlate((((hourLinePlotHours[i] - props.timeZone/60) % 24) + 24)%24, day)?.add(hourLineDirections.value[i]);
+                pos = projectionOnPlate((((hourLinePlotHours[i] - freezeProps.value.timeZone/60) % 24) + 24)%24, day)?.add(hourLineDirections.value[i]);
             } else {
                 pos = projectionOnPlate(hourLineTimeAngles.value[i] * 12/Math.PI, day)?.add(hourLineDirections.value[i]);
             }
@@ -291,8 +301,8 @@ const props = defineProps(
             label:hourLineDigitPositions.value[i] ? hour.toString() : "",
             // transform to relative coords
             pos: hourLineDigitPositions.value[i]
-                ?.sub(props.origin)
-                .applyMatrix4(new Matrix4().makeRotationFromEuler(props.rotation).invert())
+                ?.sub(freezeProps.value.origin)
+                .applyMatrix4(new Matrix4().makeRotationFromEuler(freezeProps.value.rotation).invert())
                 ?? new Vector3(0,0,0)
         }))
     })
@@ -300,17 +310,17 @@ const props = defineProps(
     const fontSize = computed(() => {
         // changing the text size causes a big lag spike
         // only do it when this sundial is actually shown
-        if (!props.show) return 0.12
+        if (!freezeProps.value.show) return 0.12
 
-        const nodusHeight = new Vector3(0,0,0).distanceTo(props.gnomonPosition)
+        const nodusHeight = new Vector3(0,0,0).distanceTo(freezeProps.value.gnomonPosition)
         if (nodusHeight < 1) return 0.055
         else return 0.12
     })
 
-const plateGeometryArgs = computed<[number, number, number]>(() => [props.radius * 2, 0.1, props.radius * 2])
-const rotationCopy = computed(() => props.rotation.clone())
-const lineToNodusPoints = computed<[number, number, number][]>(() => [[0,0,0], props.gnomonPosition.toArray()])
-const gnomonPositionCopy = computed(() => props.gnomonPosition.clone())
+const plateGeometryArgs = computed<[number, number, number]>(() => [freezeProps.value.radius * 2, 0.1, freezeProps.value.radius * 2])
+const rotationCopy = computed(() => freezeProps.value.rotation.clone())
+const lineToNodusPoints = computed<[number, number, number][]>(() => [[0,0,0], freezeProps.value.gnomonPosition.toArray()])
+const gnomonPositionCopy = computed(() => freezeProps.value.gnomonPosition.clone())
 
 </script>
 
@@ -328,7 +338,7 @@ const gnomonPositionCopy = computed(() => props.gnomonPosition.clone())
         </template>
     </TresObject3D>
 
-    <TresObject3D :visible="props.show" :position="origin" :rotation="rotationCopy">
+    <TresObject3D :visible="props.show" :position="freezeProps.origin" :rotation="rotationCopy">
 
         <!-- plate -->
         <TresMesh :position="[0, -0.05, 0]" cast-shadow receive-shadow>

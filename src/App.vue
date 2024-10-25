@@ -312,23 +312,23 @@
     <!-- setting the canvas to window-size messes up the Line2 rendering for some reason. Instead, make it fill an entire screen div. -->
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
         <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand">
+
             <TresPerspectiveCamera />
             <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
                 :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone"
                 :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
 
-            <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude"
-                :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="nodusRelativePosition"
-                :radius="projectionRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone" />
+            <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
+                :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="projectionRadius"
+                :hourLineStyle="hourLineStyle" :time-zone="timeZone" />
 
             <SunObject :position="sunCoords" />
 
 
             <!-- directional light points at :target="[0,0,0]" by default -->
-            <TresDirectionalLight :position="sunCoordsArray"
-                :intensity="directionalLightIntensity" :shadow-mapSize-width="2048"
-                :shadow-mapSize-height="2048" cast-shadow />
+            <TresDirectionalLight :position="sunCoordsArray" :intensity="directionalLightIntensity"
+                :shadow-mapSize-width="2048" :shadow-mapSize-height="2048" cast-shadow />
             <TresAmbientLight color="#AAAAAA" />
             <TresGridHelper :args="[50, 50, '#AAAAAA', '#AAAAAA']" :position="[0, -8, 0]" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
@@ -599,6 +599,7 @@ import { computed, defineComponent, getCurrentInstance, nextTick, onMounted, rea
     import CameraHelper from './components/CameraHelper.vue';
     import RendererHelper from './components/RendererHelper.vue';
     import ThreeTimesExplanation from './components/ThreeTimesExplanation.vue';
+import { Stats } from '@tresjs/cientos'
 import {  tourSteps as walkthroughSteps } from './walkthrough';
 import Popper from 'vue3-popper';
 import PointSundial from './components/PointSundial.vue';

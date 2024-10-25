@@ -3,7 +3,10 @@
 
 <script setup lang="ts">
 
+
+
 import SundialLetter from './SundialLetter.vue';
+
 
     const props = defineProps(
     {
@@ -43,10 +46,6 @@ import SundialLetter from './SundialLetter.vue';
             required: true,
             type: Number as PropType<number>
         },
-        // numerals: {
-        //     required: true,
-        //     type: String as PropType<"roman" | "arabic">
-        // },
         numeralDistanceFromSundialOrigin: {
             required: true,
             type: Number as PropType<number>
@@ -54,31 +53,39 @@ import SundialLetter from './SundialLetter.vue';
 
     });
 
-    const relativeGnomonRotation = computed(() => (90-props.latitude)*Math.PI/180);
+    // copy props only when visible, then do calculations on the copied props.
+    const freezeProps = ref({...props})
+    watch(props, (newValue) => {
+        if (newValue.show) {
+            freezeProps.value = {...newValue}
+        }
+    }, {immediate: true})
+
+    const relativeGnomonRotation = computed(() => (90-freezeProps.value.latitude)*Math.PI/180);
 
     // rotation of the gnomon relative to the sundial plate
     const gnomonCorrectedRotation = computed(() => {
         // apply the gnomon rotation and remove the object3d rotation
 
-        const mat = new Matrix4().makeRotationFromEuler(props.rotation).invert()
+        const mat = new Matrix4().makeRotationFromEuler(freezeProps.value.rotation).invert()
             .multiply(new Matrix4().makeRotationFromEuler(new Euler(-relativeGnomonRotation.value, 0, 0)))
 
         return new Euler().setFromRotationMatrix(mat);
 
     })
 
-    let sundialNormal = computed(() => new Vector3(0, 1, 0).applyEuler(props.rotation));
+    let sundialNormal = computed(() => new Vector3(0, 1, 0).applyEuler(freezeProps.value.rotation));
 
     let gnomonAbsolutePosition = computed(() => {
-        return new Vector3(...props.gnomonPosition)
-            .applyEuler(props.rotation)
-            .add(new Vector3(...props.origin))
+        return new Vector3(...freezeProps.value.gnomonPosition)
+            .applyEuler(freezeProps.value.rotation)
+            .add(new Vector3(...freezeProps.value.origin))
     })
     /** if there is an interection return it, and whether the intersection is in the positive direction of the gnomon vector.*/
     let stylePlateIntersection = computed(() => {
         // intersect the plane of the plate with the line of the sundial gnomon.
-        const plane = new Plane(sundialNormal.value, 0).translate(new Vector3(...props.origin));
-        const rayDir = new Vector3(0, -(Math.sin(props.latitude * Math.PI / 180)), (Math.cos(props.latitude * Math.PI / 180)));
+        const plane = new Plane(sundialNormal.value, 0).translate(new Vector3(...freezeProps.value.origin));
+        const rayDir = new Vector3(0, -(Math.sin(freezeProps.value.latitude * Math.PI / 180)), (Math.cos(freezeProps.value.latitude * Math.PI / 180)));
         return infiniteLineIntersectWithPlaneWithDir(plane, gnomonAbsolutePosition.value, rayDir);
     })
     let stylePlateIntersectionPoint = computed(() => stylePlateIntersection.value?.point ?? null);
@@ -91,9 +98,9 @@ import SundialLetter from './SundialLetter.vue';
     // The hours expressed in the range midnight to midnight, 0 to 2π
     const hourLineTimeAngles = computed(() => hourLineHours.map(i => {
         let offsetHour;
-        if (props.hourLineStyle == 'standard') {
+        if (freezeProps.value.hourLineStyle == 'standard') {
             // need to adjust for time zones
-            offsetHour = i - props.timeZone / 60 + props.longitude * 24 / 360
+            offsetHour = i - freezeProps.value.timeZone / 60 + freezeProps.value.longitude * 24 / 360
         }
         else {
             offsetHour = i;
@@ -105,7 +112,7 @@ import SundialLetter from './SundialLetter.vue';
     const hourLineDirections = computed(() => hourLineTimeAngles.value.map(timeAngle => {
         return calculateShadowDirection(
             timeAngle,
-            props.latitude * Math.PI / 180,
+            freezeProps.value.latitude * Math.PI / 180,
             new Vector3(...sundialNormal.value)
         ).multiplyScalar((stylePlateIntersectionPointOrder.value ?? 1))
         // the scalar multiple is to fix a bug with the numerals being offset by 12 hours in some cases.
@@ -113,7 +120,7 @@ import SundialLetter from './SundialLetter.vue';
 
     /** If the style plate intersection point is really far away from the sundial origin, or doesn't exist, then we need to calculate the hour lines differently. */
     const hourLinesCalculationMethod = computed(() => {
-        if (stylePlateIntersectionPoint.value && stylePlateIntersectionPoint.value.distanceTo(props.origin) < 1000) {
+        if (stylePlateIntersectionPoint.value && stylePlateIntersectionPoint.value.distanceTo(freezeProps.value.origin) < 1000) {
             return "stylePlateIntersection"
         } else {
             return "otherIntersection"
@@ -134,7 +141,7 @@ import SundialLetter from './SundialLetter.vue';
                  * 2. The surface of the sundial onto which the gnomon's shadow strikes (top surface)
                  * 3. A plane that is perpendicular to the direction of the style, and which does not intersect with the 3d sundial object
                  * */ 
-                const latRad = props.latitude * Math.PI / 180;
+                const latRad = freezeProps.value.latitude * Math.PI / 180;
                 const gnomon1 = gnomonAbsolutePosition.value;
                 const gnomonDir = new Vector3(0, Math.sin(latRad), -Math.cos(latRad))
                 const gnomon2 = gnomonDir.clone().add(gnomon1);
@@ -142,10 +149,10 @@ import SundialLetter from './SundialLetter.vue';
                 const pointOutsidePlate = gnomonDir.clone()
                     .projectOnPlane(sundialNormal.value)
                     .normalize()
-                    .multiplyScalar((props.radius + 1) * -(stylePlateIntersectionPointOrder.value ?? 1))
-                    .add(props.origin);
+                    .multiplyScalar((freezeProps.value.radius + 1) * -(stylePlateIntersectionPointOrder.value ?? 1))
+                    .add(freezeProps.value.origin);
 
-                const p2 = new Plane().setFromNormalAndCoplanarPoint(sundialNormal.value, props.origin);
+                const p2 = new Plane().setFromNormalAndCoplanarPoint(sundialNormal.value, freezeProps.value.origin);
                 const p3 = new Plane().setFromNormalAndCoplanarPoint(gnomonDir, pointOutsidePlate);
 
                 return hourLineTimeAngles.value.map((timeAngle) => {
@@ -175,7 +182,7 @@ import SundialLetter from './SundialLetter.vue';
             const point = hourLinePoints.value[i];
             const dir = hourLineDirections.value[i];
             // to get the portion of the line we want, intersect the hour line with a sphere centered on the sundial plate origin.
-            const lambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...props.origin), props.radius, point, dir);
+            const lambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...freezeProps.value.origin), freezeProps.value.radius, point, dir);
             if (lambdas.length == 0) return [];
             // lambda = 0 is the plate/style intersection point. Negative values are on the wrong side.
             if (lambdas[0] < 0 && lambdas[1] < 0) return [];
@@ -198,14 +205,14 @@ import SundialLetter from './SundialLetter.vue';
         const labelPoint = (() => {
             // where the label should be displayed.
             // Intersect the hour line with a sphere of radius smaller than the sundial radius, centered on the sundial origin
-            const labelSphereIntersectLambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...props.origin), props.numeralDistanceFromSundialOrigin, linePoint, lineDir);
+            const labelSphereIntersectLambdas = infiniteLineIntersectWithSphereParameters(new Vector3(...freezeProps.value.origin), freezeProps.value.numeralDistanceFromSundialOrigin, linePoint, lineDir);
             if (labelSphereIntersectLambdas.length == 0) return null;
             if (labelSphereIntersectLambdas[1] < 0) return null;
             const labelPoint = lineDir.clone().multiplyScalar(labelSphereIntersectLambdas[1]).add(linePoint);
             // prevent numbers from getting too bunched up
             if (hourLinesCalculationMethod.value == "stylePlateIntersection" && linePoint.distanceTo(labelPoint) < 3) return null;
             // move to relative coordinate of sundial
-            labelPoint.sub(props.origin).applyMatrix4(new Matrix4().makeRotationFromEuler(props.rotation).invert())
+            labelPoint.sub(freezeProps.value.origin).applyMatrix4(new Matrix4().makeRotationFromEuler(freezeProps.value.rotation).invert())
             return labelPoint.toArray();
         })()
 
@@ -223,8 +230,8 @@ import SundialLetter from './SundialLetter.vue';
         }
     }));
 
-    const rotationCopy = computed(() => props.rotation.clone())
-    const plateGeometryArgs = computed<[number, number, number]>(() => [props.radius, props.radius, 0.1])
+const rotationCopy = computed(() => freezeProps.value.rotation.clone())
+const plateGeometryArgs = computed<[number, number, number]>(() => [freezeProps.value.radius, freezeProps.value.radius, 0.1])
 </script>
 
 <template>
@@ -237,7 +244,7 @@ import SundialLetter from './SundialLetter.vue';
     </TresObject3D>
 
     <!-- some previous jank: new Euler(/* @ts-ignore */...rotation.toArray()) -->
-    <TresObject3D :visible="props.show" :position="origin" :rotation="rotationCopy">
+    <TresObject3D :visible="show" :position="freezeProps.origin" :rotation="rotationCopy">
 
         <!-- plate -->
         <TresMesh :position="[0,-0.05,0]" cast-shadow receive-shadow>
@@ -251,7 +258,7 @@ import SundialLetter from './SundialLetter.vue';
         </template>
 
         <!-- Style/gnomon -->
-        <TresMesh :position="gnomonPosition" :rotation="gnomonCorrectedRotation" cast-shadow receive-shadow>
+        <TresMesh :position="freezeProps.gnomonPosition" :rotation="gnomonCorrectedRotation" cast-shadow receive-shadow>
             <TresCylinderGeometry :args="[0.05, 0.05, 2]" />
             <TresMeshPhongMaterial color="#b7b7b7" />
         </TresMesh>
