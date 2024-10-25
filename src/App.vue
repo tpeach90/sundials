@@ -320,8 +320,10 @@
     const sunCoordsArray = computed<[number, number, number]>(() => [sunCoords.value.x, sunCoords.value.y, sunCoords.value.z])
     const directionalLightIntensity = computed(() => sunRaysPassThroughEarth.value ? 1 : sunlightIntensity.value)
     const cameraXOffset = computed(() => -(sidebarDims.value.clientWidth)/2)
-
-   
+    const gridHelperArgs = [50, 50, '#AAAAAA', '#AAAAAA'] as [number, number, string, string]
+    const gridHelperPosition = [0, -8, 0] as [number,number, number]
+    const compassCameraPosition = [0, 10, 0] as [number, number, number]
+    const compassCameraLookAt = [0, 0, 0] as [number, number, number]
 
 </script>
 
@@ -357,7 +359,7 @@
             <TresDirectionalLight :position="sunCoordsArray" :intensity="directionalLightIntensity"
                 :shadow-mapSize-width="2048" :shadow-mapSize-height="2048" cast-shadow />
             <TresAmbientLight color="#AAAAAA" />
-            <TresGridHelper :args="[50, 50, '#AAAAAA', '#AAAAAA']" :position="[0, -8, 0]" />
+            <TresGridHelper :args="gridHelperArgs" :position="gridHelperPosition" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
                 @cameraPosChange="pos => cameraPosition = pos" />
             <RendererHelper />
@@ -521,7 +523,7 @@
             <div id="compassContainer" title="North">
                 <TresCanvas render-mode="on-demand">
                     <TresAmbientLight color="#FFFFFF" :intensity="2" />
-                    <TresOrthographicCamera :position="[0, 10, 0]" :lookAt="[0, 0, 0]" :zoom="15" />
+                    <TresOrthographicCamera :position="compassCameraPosition" :lookAt="compassCameraLookAt" :zoom="15" />
                     <CompassObject :rotation="compassRotation" />
                 </TresCanvas>
                 <div style="position:absolute; width:100%; height:100%; top:0; left:0" title="North"></div>
