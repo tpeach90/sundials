@@ -1,11 +1,13 @@
 <!-- 3D object of the sundial -->
- <!-- TODO: this current updates all the computed values even if it is not shown. Maybe change that? -->
-
 <script setup lang="ts">
 
 
 
 import SundialLetter from './SundialLetter.vue';
+import { PropType, computed, defineProps, ref, watch } from 'vue'
+import { Euler, Matrix4, Plane, Vector3 } from 'three';
+import { calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
+import { Line2 } from '@tresjs/cientos'
 
 
     const props = defineProps(
@@ -266,17 +268,3 @@ const plateGeometryArgs = computed<[number, number, number]>(() => [freezeProps.
 
 </template>
 
-
-<script lang="ts">
-    import { EffectScope, PropType, computed, defineComponent, defineProps, effectScope, ref, watch } from 'vue'
-    import { Euler, Matrix4, Plane, Vector3 } from 'three';
-    import { calculateShadowDirection, hourToRomanNumeral, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
-    import { Line2 } from '@tresjs/cientos'
-
-    export default defineComponent({
-        name:"DialAndGnomonSundial",
-        components: {
-            // SundialLetter,
-        },
-    })
-</script>

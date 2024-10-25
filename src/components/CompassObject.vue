@@ -16,7 +16,6 @@ const fixedRotationOffset = [0, Math.PI, 0] as [number, number, number]
 </script>
 
 <template>
-    <!-- need to clone the rotation for some reason. -->
     <TresObject3D :rotation="rotationCopy">
         <TresObject3D :rotation="fixedRotationOffset">
             <Suspense>

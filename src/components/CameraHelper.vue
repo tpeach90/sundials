@@ -44,7 +44,6 @@ watch(() => [sizes.width.value, sizes.height.value, props.xOffset], () => {
 
 
 // adjust zoom
-// TODO uncomment this. It's only commented out cos it messes up the FPS meter for some reason.
 const { onBeforeRender, pause, resume } = useLoop()
 watch(() => props.zoomPerSecond, value => {
     if (value == 1) {

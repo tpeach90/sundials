@@ -3,6 +3,22 @@
 <script setup lang="ts">
 
     import { TresCanvas } from '@tresjs/core';
+    import { onClickOutside } from '@vueuse/core'
+    import interpolate from "color-interpolate";
+    import { computed, getCurrentInstance, nextTick, onMounted, reactive, ref, watch } from 'vue'
+    import SunObject from './components/SunObject.vue';
+    import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
+    import useVuelidate from '@vuelidate/core';
+    import { BasicShadowMap, Vector3, Euler } from 'three';
+    import { dateToString, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime } from '@/calculations';
+    import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
+    import CameraHelper from './components/CameraHelper.vue';
+    import RendererHelper from './components/RendererHelper.vue';
+    import ThreeTimesExplanation from './components/ThreeTimesExplanation.vue';
+    import { tourSteps as walkthroughSteps } from './walkthrough';
+    import Popper from 'vue3-popper';
+    import PointSundial from './components/PointSundial.vue';
+    import CompassObject from "./components/CompassObject.vue"
     
     /*
      * Config
@@ -30,7 +46,7 @@
     let sunRaysPassThroughEarth = ref(false);
     let hourLineStyle = ref<"solar"|"standard">("standard");
     let sundialType = ref<"dialAndGnomon" | "pointSundial">("dialAndGnomon")
-    /**Camera position multiplier. < 1 zoom in, > 1 zoom out */
+    /**Camera position multiplier per second. < 1 zoom in, > 1 zoom out */
     let currentZoomPerSecond = ref<number>(1);
     let sundialRotation = ref<Euler>(new Euler(0,0,0, "YXZ"));
     let gnomonHeight = ref<number>(1)
@@ -75,6 +91,15 @@
     }
     onClickOutside(timeEntryBox, hideTimeEntryBox)
 
+    // make the 3 times explanation popup disappear when escape key pressed
+    onMounted(() => {
+        document.addEventListener("keydown", (event) => {
+            if (event.key == "Escape") {
+                setShowThreeTimesExplanation(false)
+            }
+        })
+    })
+
 
     /*
      * Sidebar form validation 
@@ -92,7 +117,7 @@
     const timeZoneRegex = /^\s*([+-±]?)\s*((?:0?[0-9])|1[0-9])(?::((?:0[0-9])|[1-5][0-9]))?\s*$/;
 
     let formState = reactive(formDefaults);
-    const formRules = computed<Record<keyof typeof formDefaults, any>>(() => ({
+    const formRules = computed<Record<keyof typeof formDefaults, object>>(() => ({
         latitude: {
             required,
             decimal,
@@ -287,7 +312,9 @@
         return new Euler(altitude - Math.PI / 2, azimouth - Math.PI/2, 0, 'XYZ')
     })
 
-    // move all inline processing stuff in the <Tres...> tag props here because this is necessary for some reason to make tresjs render frames on demand
+    // previously all this stuff was inlined in the template
+    // move all inline processing stuff in the <Tres...> tag props here because this is necessary to make tresjs render frames on demand
+    // I have done this with most of the 3d components as well
     const showDialAndGnomonSundial = computed(() => sundialType.value === "dialAndGnomon")
     const showPointSundial = computed(() => sundialType.value === "pointSundial")
     const sunCoordsArray = computed<[number, number, number]>(() => [sunCoords.value.x, sunCoords.value.y, sunCoords.value.z])
@@ -476,19 +503,6 @@
                     </div>
                 </div>
 
-                <!-- <br>
-                <div class="setting">
-                    <label class="fieldTitle">Numerals</label>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="arabic" value="arabic" v-model="numerals">
-                        <label for="arabic" class="fieldOption">Western Arabic (0-23)</label>
-                    </div>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="roman" value="roman" v-model="numerals">
-                        <label for="roman" class="fieldOption">Roman (I-XXIV)</label>
-                    </div>
-                </div> -->
-
                 <br>
                 <h2>Misc</h2>
                 <div class="checkboxSetting">
@@ -556,8 +570,7 @@
             <input type="range" min="0" max="1440" step="10" class="slider" id="time" v-model.number="localTime">
 
             <!-- 3 times explanation -->
-            <Popper arrow placement="left" disable-click-away :show="showThreeTimesExplanation"
-                @keydown.escape="() => setShowThreeTimesExplanation(false)">
+            <Popper arrow placement="left" disable-click-away :show="showThreeTimesExplanation">
                 <template #content>
                     <div class="popper_content">
                         <div style="text-align: left">
@@ -583,32 +596,6 @@
 
 
 </template>
-
-
-<script lang="ts">
-    import { OrbitControls } from '@tresjs/cientos'
-    import { onClickOutside } from '@vueuse/core'
-    import interpolate from "color-interpolate";
-import { computed, defineComponent, getCurrentInstance, nextTick, onMounted, reactive, ref, watch } from 'vue'
-    import SunObject from './components/SunObject.vue';
-    import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
-    import useVuelidate from '@vuelidate/core';
-    import { BasicShadowMap, Vector3, Euler} from 'three';
-    import { dateToString, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime } from '@/calculations';
-    import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
-    import CameraHelper from './components/CameraHelper.vue';
-    import RendererHelper from './components/RendererHelper.vue';
-    import ThreeTimesExplanation from './components/ThreeTimesExplanation.vue';
-import { Stats } from '@tresjs/cientos'
-import {  tourSteps as walkthroughSteps } from './walkthrough';
-import Popper from 'vue3-popper';
-import PointSundial from './components/PointSundial.vue';
-import CompassObject from "./components/CompassObject.vue"
-    export default defineComponent({
-        name:"App",
-        components: {DialAndGnomonSundial, SunObject},
-    })
-</script>
 
 <style>
     #app {

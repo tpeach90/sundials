@@ -2,6 +2,13 @@
 
 <script setup lang="ts">
 
+import { PropType, computed, defineProps, ref, watch } from 'vue'
+import { Euler, Matrix4, Plane, Ray, Vector3 } from 'three';
+import Line2Clipped from './Line2FromCientosPackageAndItsTheSameButYouCanAlsoUseClippingPlanesSoItsNot.vue';
+import { Line2 } from "@tresjs/cientos";
+import { calculateShadowDirection, calculateSunHorizontalCoords, horizontalToActualCoords, nonNullSequence, padWithRepeatedLastElement, rad } from '@/calculations';
+import SundialLetter from './SundialLetter.vue';
+
 const props = defineProps(
     {
         show: {
@@ -364,20 +371,3 @@ const gnomonPositionCopy = computed(() => freezeProps.value.gnomonPosition.clone
     </TresObject3D>
 
 </template>
-
-
-<script lang="ts">
-import { PropType, computed, defineComponent, defineProps, ref, watch } from 'vue'
-import { Euler, Matrix4, Plane, Ray, Vector3 } from 'three';
-import Line2Clipped from './Line2FromCientosPackageAndItsTheSameButYouCanAlsoUseClippingPlanesSoItsNot.vue';
-import {Line2} from "@tresjs/cientos";
-import { calculateShadowDirection, calculateSunHorizontalCoords, horizontalToActualCoords, nonNullSequence, padWithRepeatedLastElement, rad } from '@/calculations';
-import SundialLetter from './SundialLetter.vue';
-
-export default defineComponent({
-    name: "PointSundial",
-    components: {
-        // SundialLetter,
-    },
-})
-</script>
