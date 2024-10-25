@@ -98,8 +98,6 @@ const props = defineProps(
 
 
     const hourLinePlotHours = [...Array(24).keys()];
-    // first day of each month.
-    // const plotDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     const hourLinePlotDays = [...Array(37).keys()].map(x => 10*x)
     // [hour][day] -> projection point.
     const hourLinePlotData = computed(() => {

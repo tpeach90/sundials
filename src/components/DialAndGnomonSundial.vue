@@ -245,7 +245,6 @@ const plateGeometryArgs = computed<[number, number, number]>(() => [freezeProps.
         </template>
     </TresObject3D>
 
-    <!-- some previous jank: new Euler(/* @ts-ignore */...rotation.toArray()) -->
     <TresObject3D :visible="show" :position="freezeProps.origin" :rotation="rotationCopy">
 
         <!-- plate -->

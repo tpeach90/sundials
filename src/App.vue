@@ -621,27 +621,16 @@
     }
 
     #sidebar {
-        /* flex:1;
-        flex-grow: 0; */
         pointer-events:auto;
         width: 35%;
         max-width: 500px;
         min-width:150px;
         background: rgba(39, 39, 39, 0.95);
-        /* position: relative; */
-        /* left: 0;
-        top:0; */
-        height: 100%;
-        /* padding-top: 20px;
-        padding-left:20px;
-        padding-right: 20px;
-        padding-bottom: 100px; */
-        
+        height: 100%;       
         overflow-x: hidden;
         overflow-y: scroll;
     }
     #sidebar h2 {
-        /* color:white; */
         font-size: 15pt;
         background-color: brown
     }
@@ -665,10 +654,6 @@
         flex:1
     }
 
-    /* .setting label {
-
-    } */
-
     .fieldTitle {
         display: block;
         margin-bottom: 3px;
@@ -678,9 +663,7 @@
 
     .fieldOption {
         display: inline;
-        /* margin-bottom: 3px; */
         font-size: 11pt;
-        /* white-space: nowrap */
     }
 
     .setting .error {
@@ -694,7 +677,6 @@
 
     .checkboxSetting label {
         display: block;
-        /* font-weight: bold; */
         margin-bottom: 3px;
         font-size: 11pt;
         display: inline
@@ -706,7 +688,6 @@
     }
 
     .small_input {
-        /* width: none; */
         width: 100%;
         min-width: 80px;
         max-width: 100px;
@@ -770,7 +751,6 @@
     }
 
     .zoomControl {
-        /* display: inline-block; */
         display:flex;
         align-items: center;
         justify-content: center;
@@ -802,8 +782,6 @@
         width: 20px;
         vertical-align: bottom;
     }
-
-
 
     #coordBox {
         background-color: white;
