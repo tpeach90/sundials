@@ -514,6 +514,9 @@
                 </div>
 
                 <br>
+
+                <p id="copyrightText">© Thomas Peach 2025. <a class="sidebar_link"
+                        href="mailto:thomas.peach546@gmail.com">Contact</a></p>
             </div>
 
         </div>
@@ -523,7 +526,8 @@
             <div id="compassContainer" title="North">
                 <TresCanvas render-mode="on-demand">
                     <TresAmbientLight color="#FFFFFF" :intensity="2" />
-                    <TresOrthographicCamera :position="compassCameraPosition" :lookAt="compassCameraLookAt" :zoom="15" />
+                    <TresOrthographicCamera :position="compassCameraPosition" :lookAt="compassCameraLookAt"
+                        :zoom="15" />
                     <CompassObject :rotation="compassRotation" />
                 </TresCanvas>
                 <div style="position:absolute; width:100%; height:100%; top:0; left:0" title="North"></div>
@@ -822,6 +826,10 @@
         display:flex;
         align-items:center;
         flex-direction:column
+    }
+
+    #copyrightText {
+        font-size: 10pt
     }
 
 </style>
