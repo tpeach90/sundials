@@ -50,13 +50,13 @@
     let currentZoomPerSecond = ref<number>(1);
     let sundialRotation = ref<Euler>(new Euler(0,0,0, "YXZ"));
     let gnomonHeight = ref<number>(1)
+    let timeAdvanceSpeed = ref<number>(0)
+    let alwaysDaySkyColor = ref<boolean>(false);
 
     /**
      * readonly variables
      */
     let cameraPosition = ref<Vector3>()
-
-
 
     /*
      * Allow the time to be input manually.
@@ -262,6 +262,25 @@
         }
     })
 
+    function timeAdvanceButtonClicked() {
+        if (timeAdvanceSpeed.value == 0) {
+            timeAdvanceSpeed.value = 1
+        } else {
+            timeAdvanceSpeed.value *= 4
+            if (timeAdvanceSpeed.value > 16) {
+                timeAdvanceSpeed.value = 0
+            }
+        }
+        // timeAdvanceSpeed.value = (timeAdvanceSpeed.value + 1) % 4
+    }
+    function advanceTime(mins:number) {
+        localTime.value += mins
+        if (localTime.value >= 1440) {
+            localTime.value %= 1440
+            day.value = (day.value + 1) % 365
+        }
+    }
+
     /**
      * computed values
      */
@@ -274,7 +293,7 @@
     const sunCoords = computed(() => horizontalToActualCoords(sunHorizontalCoords.value.azimuth, sunHorizontalCoords.value.altitude))
     // let gnomonRotation = computed(() => (90-latitude.value)*Math.PI/180);
     const isDaytime = computed(() => sunHorizontalCoords.value.altitude >= 0);
-    const statusTextColor = computed(() => isDaytime.value ? "black" : "white")
+    const statusTextColor = computed(() => isDaytime.value || alwaysDaySkyColor.value ? "black" : "white")
     const timeText = computed(() => timeToString(localTime.value))
     const dateText = computed(() => dateToString(day.value));
     const meanSolarTime = computed(() => time.value + ((longitude.value/360)*24*60));
@@ -297,6 +316,9 @@
         return 0;
     })
     const skyColor = computed(() => {
+        if (alwaysDaySkyColor.value) {
+            return "#87CEEB"
+        }
         // make the sky look nice innit
         return interpolate(["#02407a", "#87CEEB"])(sunlightIntensity.value);
     })
@@ -310,6 +332,14 @@
         const altitude = Math.asin(cameraPosition.value.y/cameraDistance);
         const azimouth = Math.atan2(cameraPosition.value.z, cameraPosition.value.x)
         return new Euler(altitude - Math.PI / 2, azimouth - Math.PI/2, 0, 'XYZ')
+    })
+
+    const timeAdvanceButtonText = computed(() => {
+        if (timeAdvanceSpeed.value == 0) {
+            return "▶"
+        } else {
+            return timeAdvanceSpeed.value + "x"
+        }
     })
 
     // previously all this stuff was inlined in the template
@@ -361,7 +391,8 @@
             <TresAmbientLight color="#AAAAAA" />
             <TresGridHelper :args="gridHelperArgs" :position="gridHelperPosition" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
-                @cameraPosChange="pos => cameraPosition = pos" />
+                @cameraPosChange="pos => cameraPosition = pos" @on-advance-time="advanceTime"
+                :time-advance-speed="timeAdvanceSpeed" />
             <RendererHelper />
         </TresCanvas>
     </div>
@@ -509,8 +540,12 @@
                 <h2>Misc</h2>
                 <div class="checkboxSetting">
                     <input type="checkbox" id="sunRaysPassThroughEarth" v-model="sunRaysPassThroughEarth">
-                    <label for="sunRaysPassThroughEarth" class="fieldOption">Sundial remains illuminated at
+                    <label for="sunRaysPassThroughEarth" class="fieldOption">Light can reach the sundial at
                         night</label>
+                </div>
+                <div class="checkboxSetting">
+                    <input type="checkbox" id="alwaysDaySkyColor" v-model="alwaysDaySkyColor">
+                    <label for="alwaysDaySkyColor" class="fieldOption">Disable night-time dark sky color</label>
                 </div>
 
                 <br>
@@ -573,7 +608,11 @@
 
             <div class="subtitle">{{ meanSolarTimeText }} mean solar time</div>
             <div class="subtitle">{{ apparentSolarTimeText }} apparent solar time</div>
-            <input type="range" min="0" max="1440" step="10" class="slider" id="time" v-model.number="localTime">
+            <div style="display:flex; flex-direction:row">
+                <input type="range" min="0" max="1440" step="10" class="slider" id="time" v-model.number="localTime">
+                <button type="button" @click="timeAdvanceButtonClicked" id="time_advance_button"
+                    title="Auto-advance time">{{timeAdvanceButtonText}}</button>
+            </div>
 
             <!-- 3 times explanation -->
             <Popper arrow placement="left" disable-click-away :show="showThreeTimesExplanation">
@@ -830,6 +869,10 @@
 
     #copyrightText {
         font-size: 10pt
+    }
+
+    #time_advance_button {
+        /* width:25px; */
     }
 
 </style>

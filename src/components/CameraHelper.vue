@@ -3,7 +3,7 @@
 <script lang="ts" setup>
 import { useTresContext, useLoop} from '@tresjs/core';
 import { PerspectiveCamera, Vector3} from 'three';
-import { PropType, watch, defineProps, defineEmits} from 'vue';
+import { PropType, watch, defineProps, defineEmits, ref} from 'vue';
 import { extend } from '@tresjs/core'
 import { OrbitControls } from 'three-stdlib';
 
@@ -21,11 +21,16 @@ const props = defineProps({
         required: false,
         default:1,
         type: Number as PropType<number>
+    },
+    timeAdvanceSpeed: {
+        required: true,
+        type: Number as PropType<number>
     }
 });
 
 const emit = defineEmits<{
-    cameraPosChange:[pos:Vector3]
+    cameraPosChange:[pos:Vector3],
+    onAdvanceTime: [mins: number]
 }>()
 
 // Make the focus point of the camera a bit off center on the canvas
@@ -43,23 +48,35 @@ watch(() => [sizes.width.value, sizes.height.value, props.xOffset], () => {
 }, {immediate: true})
 
 
-// adjust zoom
-const { onBeforeRender, pause, resume } = useLoop()
-watch(() => props.zoomPerSecond, value => {
-    if (value == 1) {
-        pause()
-    } else {
+
+const { onBeforeRender, onAfterRender, pause, resume } = useLoop()
+watch(() => [props.zoomPerSecond, props.timeAdvanceSpeed], () => {
+    if (props.zoomPerSecond != 1 || props.timeAdvanceSpeed != 0) {
         resume()
+    } else {
+        pause()
     }
 }, {immediate: true})
+// adjust zoom
 onBeforeRender(({ delta }) => {
-    if (camera.value) {
+    if (camera.value && props.zoomPerSecond != 1) {
         const zoomThisFrame = Math.pow(props.zoomPerSecond, delta)
         camera.value.position.x *= zoomThisFrame
         camera.value.position.y *= zoomThisFrame
         camera.value.position.z *= zoomThisFrame
     }
 })
+// adjust sundial time
+let leftoverMinFractionFromLastFrame = ref<number>(0)
+onAfterRender(({ delta }) => {
+    const fractionalMinsToAdd = delta * props.timeAdvanceSpeed / 70 * 1000 + leftoverMinFractionFromLastFrame.value
+    const wholeMins = Math.floor(fractionalMinsToAdd)
+    leftoverMinFractionFromLastFrame.value = fractionalMinsToAdd % 1
+    if (wholeMins > 0) {
+        emit('onAdvanceTime', wholeMins)
+    }
+})
+
 
 watch(() => [
     camera.value?.position.x,
