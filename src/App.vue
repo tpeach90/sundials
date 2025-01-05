@@ -871,8 +871,5 @@
         font-size: 10pt
     }
 
-    #time_advance_button {
-        /* width:25px; */
-    }
 
 </style>
