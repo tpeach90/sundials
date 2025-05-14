@@ -46,9 +46,12 @@
     let sunRaysPassThroughEarth = ref(false);
     let hourLineStyle = ref<"solar"|"standard">("standard");
     let sundialType = ref<"dialAndGnomon" | "pointSundial">("dialAndGnomon")
+    let slant = ref<number>(0);
+    let rotation = ref<number>(0);
     /**Camera position multiplier per second. < 1 zoom in, > 1 zoom out */
     let currentZoomPerSecond = ref<number>(1);
-    let sundialRotation = ref<Euler>(new Euler(0,0,0, "YXZ"));
+    // slant + rotation.
+    
     let gnomonHeight = ref<number>(1)
     let timeAdvanceSpeed = ref<number>(0)
     let alwaysDaySkyColor = ref<boolean>(false);
@@ -136,7 +139,7 @@
         slant: {
             required,
             decimal,
-            minValue:minValue(0),
+            minValue:minValue(-180),
             maxValue:maxValue(180)
         },
         rotation: {
@@ -177,10 +180,10 @@
         }
     }, {immediate:true})
     watch(() => formState.slant, newVal => {
-        if (!v$.value.slant.$invalid) sundialRotation.value.x = Number.parseFloat(newVal) * Math.PI/180;
+        if (!v$.value.slant.$invalid) slant.value = Number.parseFloat(newVal) * Math.PI/180;
     }, {immediate: true})
     watch(() => formState.rotation, newVal => {
-        if (!v$.value.rotation.$invalid) sundialRotation.value.y = -Number.parseFloat(newVal) * Math.PI / 180;
+        if (!v$.value.rotation.$invalid) rotation.value = -Number.parseFloat(newVal) * Math.PI / 180;
     }, { immediate: true })
     watch(() => formState.gnomonHeight, newVal => {
         if (!v$.value.gnomonHeight.$invalid) gnomonHeight.value = Number.parseFloat(newVal);
@@ -284,6 +287,7 @@
     /**
      * computed values
      */
+    const sundialRotation = computed(() => new Euler(Math.abs(slant.value), rotation.value + (slant.value < 0 ? Math.PI : 0), 0, "YXZ"));
     /** relative to sundial origin and rotation */
     const gnomonRelativePosition = computed(() => new Vector3(0, gnomonHeight.value, 0));
     const nodusRelativePosition = computed(() => new Vector3(0, gnomonHeight.value, 0));
@@ -505,7 +509,7 @@
                         <input class="small_input" v-model="v$.slant.$model">
                         <div class="error" v-if="v$.slant.$dirty && v$.slant.$invalid">{{
                             v$.slant.$errors[0].$message }}</div>
-                        <input type="range" :min="0" :max="180" step="1" class="slider" v-model="v$.slant.$model">
+                        <input type="range" :min="-180" :max="180" step="1" class="slider" v-model="v$.slant.$model">
                     </div>
                     <div class="setting">
                         <label class="fieldTitle">Rotation/°</label>
@@ -550,8 +554,10 @@
 
                 <br>
 
-                <p id="copyrightText">© Thomas Peach 2025. <a class="sidebar_link"
-                        href="mailto:thomas.peach546@gmail.com">Contact</a></p>
+                <footer>
+                    <p id="copyrightText">© Thomas Peach 2025. <a class="sidebar_link"
+                            href="mailto:thomas.peach546@gmail.com">Contact</a></p>
+                </footer>
             </div>
 
         </div>

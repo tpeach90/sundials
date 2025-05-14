@@ -183,7 +183,7 @@ export function stringToTime(str: string) {
 export function dateToString(day: number) {
     // add date to an arbitrary non-leap year
     const dateObj = new Date(Date.parse("2001") + day * 24 * 60 * 60 * 1000);
-    return dateObj.toLocaleDateString(undefined, { month: "long", day: 'numeric' })
+    return dateObj.toLocaleDateString("en", { month: "long", day: 'numeric' })
 }
 
 /**

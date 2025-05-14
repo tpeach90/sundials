@@ -212,7 +212,7 @@ import { Line2 } from '@tresjs/cientos'
             if (labelSphereIntersectLambdas[1] < 0) return null;
             const labelPoint = lineDir.clone().multiplyScalar(labelSphereIntersectLambdas[1]).add(linePoint);
             // prevent numbers from getting too bunched up
-            if (hourLinesCalculationMethod.value == "stylePlateIntersection" && linePoint.distanceTo(labelPoint) < 3) return null;
+            if (hourLinesCalculationMethod.value == "stylePlateIntersection" && linePoint.distanceTo(labelPoint) < 2.5) return null;
             // move to relative coordinate of sundial
             labelPoint.sub(freezeProps.value.origin).applyMatrix4(new Matrix4().makeRotationFromEuler(freezeProps.value.rotation).invert())
             return labelPoint.toArray();
