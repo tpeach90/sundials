@@ -10,7 +10,7 @@
     import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
     import { BasicShadowMap, Vector3, Euler } from 'three';
-    import { dateToString, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime } from '@/calculations';
+    import { dateToString, horizontalToActualCoords, calculateSunHorizontalCoordsFromUTC, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime } from '@/calculations';
     import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
     import CameraHelper from './components/CameraHelper.vue';
     import RendererHelper from './components/RendererHelper.vue';
@@ -44,7 +44,8 @@
     let timeZone = ref<number>(0);
     // let numerals = ref<"roman"|"arabic">("arabic");
     let sunRaysPassThroughEarth = ref(false);
-    let hourLineStyle = ref<"solar"|"standard">("standard");
+    let traditionalSundialHourLineStyle = ref<"solar"|"standard">("standard");
+    let pointShadowTraceHourLineStyle = ref<"modern-local"|"modern-mean-solar"|"modern-apparent-solar"|"babylonian"|"italian"|"seasonal">("modern-local");
     let sundialType = ref<"dialAndGnomon" | "pointSundial">("dialAndGnomon")
     let slant = ref<number>(0);
     let rotation = ref<number>(0);
@@ -293,13 +294,14 @@
     const nodusRelativePosition = computed(() => new Vector3(0, gnomonHeight.value, 0));
     /** convert local time to UTC +0 */
     const time = computed(() => (((localTime.value - timeZone.value) % 1440) + 1440) % 1440)
-    const sunHorizontalCoords = computed(() => calculateSunHorizontalCoords(day.value, time.value, latitude.value, longitude.value));
+    const sunHorizontalCoords = computed(() => calculateSunHorizontalCoordsFromUTC(day.value, time.value, latitude.value, longitude.value));
     const sunCoords = computed(() => horizontalToActualCoords(sunHorizontalCoords.value.azimuth, sunHorizontalCoords.value.altitude))
     // let gnomonRotation = computed(() => (90-latitude.value)*Math.PI/180);
     const isDaytime = computed(() => sunHorizontalCoords.value.altitude >= 0);
     const statusTextColor = computed(() => isDaytime.value || alwaysDaySkyColor.value ? "black" : "white")
     const timeText = computed(() => timeToString(localTime.value))
     const dateText = computed(() => dateToString(day.value));
+    // mst is within 1 second of UTC at 0° longitude so this is fine
     const meanSolarTime = computed(() => time.value + ((longitude.value/360)*24*60));
     const meanSolarTimeText = computed(() => timeToString(meanSolarTime.value));
     const apparentSolarTime = computed(() => {
@@ -379,12 +381,12 @@
             <TresPerspectiveCamera />
             <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
-                :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone"
+                :radius="sundialRadius" :hourLineStyle="traditionalSundialHourLineStyle" :time-zone="timeZone"
                 :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
 
             <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
                 :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="projectionRadius"
-                :hourLineStyle="hourLineStyle" :time-zone="timeZone" />
+                :hourLineStyle="pointShadowTraceHourLineStyle" :time-zone="timeZone" />
 
             <SunObject :position="sunCoords" />
 
@@ -529,15 +531,60 @@
                     </div>
                 </div>
                 <div class="setting" data-v-walkthrough="hour-lines">
+
                     <label class="fieldTitle">Hour lines</label>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="standardLines" value="standard" v-model="hourLineStyle">
-                        <label for="standardLines" class="fieldOption">Adjusted for time zone and longitude</label>
+
+
+                    <!-- traditional sundial hour lines -->
+                    <div v-if="sundialType == 'dialAndGnomon'">
+                        <div class="checkboxSetting">
+                            <input type="radio" id="standardLines" value="standard"
+                                v-model="traditionalSundialHourLineStyle">
+                            <label for="standardLines" class="fieldOption">Adjusted for time zone and longitude</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="solarLines" value="solar" v-model="traditionalSundialHourLineStyle">
+                            <label for="solarLines" class="fieldOption">Apparent solar time</label>
+                        </div>
                     </div>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="solarLines" value="solar" v-model="hourLineStyle">
-                        <label for="solarLines" class="fieldOption">Solar time</label>
+
+                    <!-- point shadow trace hour line selector-->
+                    <div v-else-if="sundialType=='pointSundial'" style="margin-left:10px">
+                        <label class="fieldTitle">Modern hours</label>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstModernLocal" value="modern-local"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstModernLocal" class="fieldOption">Local standard time</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstModernMeanSolar" value="modern-mean-solar"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstModernMeanSolar" class="fieldOption">Mean solar time</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstModernApparentSolar" value="modern-apparent-solar"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstModernApparentSolar" class="fieldOption">Apparent solar time</label>
+                        </div>
+                        <label class="fieldTitle" style="margin-top:4px">Other</label>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstBabylonian" value="babylonian"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstBabylonian" class="fieldOption">Babylonian hours (hours from
+                                sunrise)</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstItalian" value="italian" v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstItalian" class="fieldOption">Italian hours (hours from sunset)</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstSeasonal" value="seasonal"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstSeasonal" class="fieldOption">Seasonal/unequal hours (sunrise to
+                                sunset)</label>
+                        </div>
                     </div>
+
                 </div>
 
                 <br>
@@ -876,6 +923,8 @@
     #copyrightText {
         font-size: 10pt
     }
+
+
 
 
 </style>

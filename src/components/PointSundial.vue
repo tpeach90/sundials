@@ -6,7 +6,7 @@ import { PropType, computed, defineProps, ref, watch } from 'vue'
 import { Euler, Matrix4, Plane, Ray, Vector3 } from 'three';
 import Line2Clipped from './Line2FromCientosPackageAndItsTheSameButYouCanAlsoUseClippingPlanesSoItsNot.vue';
 import { Line2 } from "@tresjs/cientos";
-import { calculateShadowDirection, calculateSunHorizontalCoords, horizontalToActualCoords, nonNullSequence, padWithRepeatedLastElement, rad } from '@/calculations';
+import { calculateShadowDirection, calculateSunHorizontalCoordsFromApparentSolarTime, calculateSunHorizontalCoordsFromUTC, horizontalToActualCoords, nonNullSequence, padWithRepeatedLastElement, rad } from '@/calculations';
 import SundialLetter from './SundialLetter.vue';
 
 const props = defineProps(
@@ -41,7 +41,7 @@ const props = defineProps(
         },
         hourLineStyle: {
             required: true,
-            type: String as PropType<"solar" | "standard">
+            type: String as PropType<"modern-local" | "modern-mean-solar" | "modern-apparent-solar" | "babylonian" | "italian" | "seasonal">
         },
         timeZone: {
             required: true,
@@ -72,21 +72,56 @@ const props = defineProps(
     // vector used to raise the plot above the surface.
     const plateToPlotVector = computed(() => sundialNormal.value.clone().normalize().multiplyScalar(0.007))
 
-    function projectionOnPlate(hour:number, day:number) : Vector3 | null {
 
-        // for solar time, just pretend the longitude is 0
-        const longitude = (() => {
-            switch(freezeProps.value.hourLineStyle) {
-                case "solar":
-                    return 0
-                case "standard":
-                    return freezeProps.value.longitude
-            }
-        })()
+    /**
+     * Affected by context: latitude, longitude, platePlane.
+     * Coordinates produced are raised slightly above the plate with plateToPlotVector
+     * @param hour 0 to 23 (hours from midnight. To `timeStandard` standard.)
+     * @param day 0 to 364
+     * @param timeStandard mean solar time or utc+0 time.
+     */
+    function projectionOnPlate(hour: number, day: number, hourLineStyle: typeof props.hourLineStyle) : Vector3 | null {
+
+        let horizontalCoords: { azimuth:number, altitude: number }
+
+        switch (hourLineStyle) {
+            case 'modern-local':
+                /**@todo move adjustment for time zone to here (currently in the labels code somewhere) */
+                horizontalCoords = calculateSunHorizontalCoordsFromUTC(day, hour * 60 - freezeProps.value.timeZone, freezeProps.value.latitude, freezeProps.value.longitude)
+                break
+            case 'modern-mean-solar':
+                // mean solar time is equivalent to standard time at longitude=0
+                horizontalCoords = calculateSunHorizontalCoordsFromUTC(day, hour * 60, freezeProps.value.latitude, 0)
+                break
+            case 'modern-apparent-solar':
+                horizontalCoords = calculateSunHorizontalCoordsFromApparentSolarTime(day, hour * 60, freezeProps.value.latitude, freezeProps.value.longitude)
+                break
+                // convert apparent time to mean and then do the above
+                // OR you could not use this method of calculation and instead intersect the lines with the solstice curves (you will need to find the equations of those)
+            case 'babylonian':
+                horizontalCoords = { azimuth: 0, altitude: 0 }
+                break
+                // add ast sunrise (- 1??) to find apparent solar time.
+                // https://en.wikipedia.org/wiki/Sunrise_equation
+                // there will be some slight inaccuracy due to length of days being different... probably
+            case 'italian':
+                horizontalCoords = { azimuth: 0, altitude: 0 }
+                break
+                // add ast sunset to find apparent solar time
+            case 'seasonal':
+                horizontalCoords = { azimuth: 0, altitude: 0 }
+                break
+                // do something weird idk
+            default:
+                alert(hourLineStyle)
+                horizontalCoords = { azimuth: 0, altitude: 0 }
+                break
+        }
 
         // sun pos
-        const { azimuth, altitude } = calculateSunHorizontalCoords(day, hour * 60, freezeProps.value.latitude, longitude)
-        const sunPos = horizontalToActualCoords(azimuth, altitude)
+
+
+        const sunPos = horizontalToActualCoords(horizontalCoords.azimuth, horizontalCoords.altitude)
 
         // shadow projection on plate
         const ray = new Ray(gnomonAbsolutePosition.value, new Vector3(-sunPos.x, -sunPos.y, -sunPos.z))
@@ -103,7 +138,7 @@ const props = defineProps(
     const hourLinePlotData = computed(() => {
         return hourLinePlotHours.map(hour => 
             hourLinePlotDays.map(day => {
-                return projectionOnPlate(hour, day)
+                return projectionOnPlate(hour, day, freezeProps.value.hourLineStyle)
             })
         )
     })
@@ -156,7 +191,7 @@ const props = defineProps(
     const solsticePlotData = computed(() => 
          solsticePlotDays.map(day => 
             solsticePlotHours.map(hour => 
-                projectionOnPlate(hour, day) 
+                projectionOnPlate(hour, day, freezeProps.value.hourLineStyle) 
             )
         )
     )
@@ -228,9 +263,9 @@ const props = defineProps(
     // The hours expressed in the range midnight to midnight, 0 to 2π
     const hourLineTimeAngles = computed(() => hourLinePlotHours.map(i => {
         let offsetHour;
-        if (freezeProps.value.hourLineStyle == 'standard') {
-            // need to adjust for time zones
-            offsetHour = i - freezeProps.value.timeZone / 60 + freezeProps.value.longitude * 24 / 360
+        if (freezeProps.value.hourLineStyle == 'modern-local') {
+            // need to adjust for longitude
+            offsetHour = i + freezeProps.value.longitude * 24 / 360
         }
         else {
             offsetHour = i;
@@ -242,7 +277,7 @@ const props = defineProps(
     // work out what solstice line to put the numerals on.
     const solsticeLineOfNumerals = computed(() => {
         // make a ray starting from the nodus, pointing towards the north start.
-        // if this ray intersercts the sundial plate, then use the winter solstice. Otherwise use the summer solstice.
+        // if this ray intersercts the sundial plate plane (infinitely extended), then use the winter solstice. Otherwise use the summer solstice.
         const ray = new Ray(gnomonAbsolutePosition.value, new Vector3(0, Math.cos(rad(90-freezeProps.value.latitude)), -Math.sin(rad(90-freezeProps.value.latitude))))
         const intersect = ray.intersectsPlane(platePlane.value)
         return intersect ? "winter" : "summer"
@@ -252,7 +287,7 @@ const props = defineProps(
     // need this to work out where to position the digits
     const hourLineDirections = computed(() => hourLineTimeAngles.value.map(timeAngle => {
         return calculateShadowDirection(
-            timeAngle,
+            timeAngle - (freezeProps.value.hourLineStyle == "modern-local" ? freezeProps.value.timeZone/1440*Math.PI*2 : 0),
             freezeProps.value.latitude * Math.PI / 180,
             sundialNormal.value
         ).normalize().multiplyScalar(0.2 * (solsticeLineOfNumerals.value == "winter" ? 1 : -1))
@@ -272,14 +307,7 @@ const props = defineProps(
         })()
 
         return hourLinePlotHours.map((hour, i) => {
-            let pos :Vector3|undefined;
-            if (freezeProps.value.hourLineStyle == "standard") {
-                // projectOnPlate handles the longitude. don't need to adjust for that here
-                pos = projectionOnPlate((((hourLinePlotHours[i] - freezeProps.value.timeZone/60) % 24) + 24)%24, day)?.add(hourLineDirections.value[i]);
-            } else {
-                pos = projectionOnPlate(hourLineTimeAngles.value[i] * 12/Math.PI, day)?.add(hourLineDirections.value[i]);
-            }
-
+            const pos = projectionOnPlate(hourLinePlotHours[i], day, freezeProps.value.hourLineStyle)?.add(hourLineDirections.value[i]);
             if (!pos) return null
 
             // check if pos is on the plate
