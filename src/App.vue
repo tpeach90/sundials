@@ -24,8 +24,9 @@
      * Config
      */
     const sundialOrigin = new Vector3(0, -0.5, 0);
-    const sundialRadius = 5;
-    const projectionRadius = 4;
+    const cameraTarget = sundialOrigin.clone();
+    const traditionalSundialRadius = 5;
+    const pointSundialRadius = 4;
     const numeralDistanceFromSundialOrigin = 4;
     const zoomSpeed = 3;
 
@@ -55,6 +56,7 @@
     
     let gnomonHeight = ref<number>(1)
     let timeAdvanceSpeed = ref<number>(0)
+    let showEquinoxLine = ref<boolean>(false)
     let alwaysDaySkyColor = ref<boolean>(false);
 
     /**
@@ -275,7 +277,6 @@
                 timeAdvanceSpeed.value = 0
             }
         }
-        // timeAdvanceSpeed.value = (timeAdvanceSpeed.value + 1) % 4
     }
     function advanceTime(mins:number) {
         localTime.value += mins
@@ -316,17 +317,21 @@
     const timeZoneText = computed(() => timeZoneToString(timeZone.value))
     const sunlightIntensity = computed(() => {
         // a very unscientific way of calculating the apparent sunlight intensity.
-        // have a little bit of sunlight when the sun is below the horizon.
+        // stays at the same value until close to sunset (reasoning is that people's eyes adjust during the daytime)
         if (sunHorizontalCoords.value.altitude > 0.1) return 1;
-        if (sunHorizontalCoords.value.altitude > -0.1) return (sunHorizontalCoords.value.altitude + 0.1)/0.2;
+        if (sunHorizontalCoords.value.altitude > 0) return sunHorizontalCoords.value.altitude/0.1;
         return 0;
     })
     const skyColor = computed(() => {
         if (alwaysDaySkyColor.value) {
             return "#87CEEB"
         }
+        // 1: day, 0: night.
+        let skyColorBrightness = 0
+        if (sunHorizontalCoords.value.altitude > 0.1) skyColorBrightness = 1;
+        else if (sunHorizontalCoords.value.altitude > -0.1) skyColorBrightness = (sunHorizontalCoords.value.altitude+0.1) / 0.2;
         // make the sky look nice innit
-        return interpolate(["#02407a", "#87CEEB"])(sunlightIntensity.value);
+        return interpolate(["#02407a", "#87CEEB"])(skyColorBrightness);
     })
     const compassRotation = computed(() => {
 
@@ -347,6 +352,11 @@
             return timeAdvanceSpeed.value + "x"
         }
     })
+
+    // onMounted(() => {
+    //     document.getElementById("mainCanvas")?.setAttribute('draggable', "false");
+    // })
+    
 
     // previously all this stuff was inlined in the template
     // move all inline processing stuff in the <Tres...> tag props here because this is necessary to make tresjs render frames on demand
@@ -381,14 +391,15 @@
             <TresPerspectiveCamera />
             <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
-                :radius="sundialRadius" :hourLineStyle="traditionalSundialHourLineStyle" :time-zone="timeZone"
+                :radius="traditionalSundialRadius" :hourLineStyle="traditionalSundialHourLineStyle" :time-zone="timeZone"
                 :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
 
             <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
-                :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="projectionRadius"
-                :hourLineStyle="pointShadowTraceHourLineStyle" :time-zone="timeZone" />
+                :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="pointSundialRadius"
+                :hourLineStyle="pointShadowTraceHourLineStyle" :time-zone="timeZone"
+                :show-equinox-line="showEquinoxLine" />
 
-            <SunObject :position="sunCoords" />
+            <SunObject :position="sunCoords"/>
 
 
             <!-- directional light points at :target="[0,0,0]" by default -->
@@ -398,7 +409,7 @@
             <TresGridHelper :args="gridHelperArgs" :position="gridHelperPosition" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
                 @cameraPosChange="pos => cameraPosition = pos" @on-advance-time="advanceTime"
-                :time-advance-speed="timeAdvanceSpeed" />
+                :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget"/>
             <RendererHelper />
         </TresCanvas>
     </div>
@@ -585,6 +596,14 @@
                         </div>
                     </div>
 
+                </div>
+
+
+                <div class="setting" v-if="sundialType == 'pointSundial'">
+                    <br>
+                    <input type="checkbox" id="showEquinoxLine" v-model="showEquinoxLine"
+                        style="margin-right: 10px; display: inline;">
+                    <label for="showEquinoxLine" class="fieldOption">Show equinox line</label>
                 </div>
 
                 <br>
@@ -922,6 +941,10 @@
 
     #copyrightText {
         font-size: 10pt
+    }
+
+    input{
+        accent-color: rgb(201, 84, 42)
     }
 
 

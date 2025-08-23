@@ -7,6 +7,11 @@
         position: {
             required: true,
             type: Object as PropType<{x:number, y:number, z:number}>,
+        },
+        transparent: {
+            required: false,
+            type: Boolean as PropType<boolean>,
+            default: false,
         }
     })
 
@@ -22,7 +27,8 @@
         <!-- sun -->
         <TresMesh>
             <TresSphereGeometry :args="[0.5, 20, 16,]" />
-            <TresMeshBasicMaterial color="#ffffff" />
+            <TresMeshBasicMaterial v-if="props.transparent" color="#ffffff" :transparent="true" :opacity="0.3" />
+            <TresMeshBasicMaterial v-else color="#ffffff" />
         </TresMesh>
 
     </TresObject3D>

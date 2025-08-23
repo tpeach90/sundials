@@ -6,7 +6,7 @@
 import SundialLetter from './SundialLetter.vue';
 import { PropType, computed, defineProps, ref, watch } from 'vue'
 import { Euler, Matrix4, Plane, Vector3 } from 'three';
-import { calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
+import { assertUnreachable, calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
 import { Line2 } from '@tresjs/cientos'
 
 
@@ -165,13 +165,9 @@ import { Line2 } from '@tresjs/cientos'
                     return point;
                 })
             }
-            default:
-                // this should never happen.
-                return [];
-
-
-
         }
+        assertUnreachable(hourLinesCalculationMethod.value);
+        return []
         
     })
 
