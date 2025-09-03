@@ -62,7 +62,7 @@ Additionally, the <strong>Gnomon height</strong> (or Nodus height in Point shado
     },
     {
         target: '[data-v-walkthrough="hour-lines"]',
-        content: `Sundials often measure <strong>Solar time</strong>, where solar noon is the time at which the sun is highest in the sky.
+        content: `Sundials often measure <strong>Apparent solar time</strong>, where solar noon is the time at which the sun is highest in the sky.
 However, you may want the sundial to measure an approximation of standard time, taking the longitude and time zone into account. To do this, select <strong>Adjusted for time zone and longitude</strong>. Note that depending on the time of year the reading can be inaccurate by up to 16 min 33 s due to the varying length of the solar day (see <a href="https://en.wikipedia.org/wiki/Equation_of_time" target="_blank">https://en.wikipedia.org/wiki/Equation_of_time</a>).`,
         params: {
             placement: 'right',

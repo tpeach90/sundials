@@ -6,8 +6,9 @@
 import SundialLetter from './SundialLetter.vue';
 import { PropType, computed, defineProps, ref, watch } from 'vue'
 import { Euler, Matrix4, Plane, Vector3 } from 'three';
-import { calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
+import { assertUnreachable, calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
 import { Line2 } from '@tresjs/cientos'
+import SundialFaceGrid from "./SundialFaceGrid.vue"
 
 
     const props = defineProps(
@@ -51,6 +52,14 @@ import { Line2 } from '@tresjs/cientos'
         numeralDistanceFromSundialOrigin: {
             required: true,
             type: Number as PropType<number>
+        },
+        showGrid: {
+            required: true,
+            type: Boolean as PropType<boolean>
+        },
+        gridColorPalette: {
+            required: true,
+            type: String as PropType<"light" | "dark">
         }
 
     });
@@ -165,13 +174,9 @@ import { Line2 } from '@tresjs/cientos'
                     return point;
                 })
             }
-            default:
-                // this should never happen.
-                return [];
-
-
-
         }
+        assertUnreachable(hourLinesCalculationMethod.value);
+        return []
         
     })
 
@@ -234,12 +239,20 @@ import { Line2 } from '@tresjs/cientos'
 
 const rotationCopy = computed(() => freezeProps.value.rotation.clone())
 const plateGeometryArgs = computed<[number, number, number]>(() => [freezeProps.value.radius, freezeProps.value.radius, 0.1])
+const sundialFaceOriginRaised = computed(() => freezeProps.value.origin.clone().add(plateToHourLineHeight.value))
+
 </script>
 
 <template>
 
     <!-- hour lines (calculated in world coordinates)-->
     <TresObject3D :visible="show">
+
+        <!-- grid -->
+        <SundialFaceGrid :sundialRotation="freezeProps.rotation" :show="freezeProps.showGrid"
+            :origin="sundialFaceOriginRaised" :radius="freezeProps.radius"
+            :colorPalette="freezeProps.gridColorPalette" />
+
         <template v-for="{points, hour} in hourLines" v-bind:key="hour">
             <Line2 :line-width="1" :points="points" color="#FFFFFF" />
         </template>

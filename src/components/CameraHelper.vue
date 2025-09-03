@@ -4,10 +4,7 @@
 import { useTresContext, useLoop} from '@tresjs/core';
 import { PerspectiveCamera, Vector3} from 'three';
 import { PropType, watch, defineProps, defineEmits, ref} from 'vue';
-import { extend } from '@tresjs/core'
 import { OrbitControls } from 'three-stdlib';
-
-extend({ OrbitControls })
 
 
 const {camera,  sizes, renderer, invalidate} = useTresContext();
@@ -25,6 +22,10 @@ const props = defineProps({
     timeAdvanceSpeed: {
         required: true,
         type: Number as PropType<number>
+    },
+    target: {
+        required: true,
+        type: Object as PropType<Vector3>
     }
 });
 
@@ -32,6 +33,8 @@ const emit = defineEmits<{
     cameraPosChange:[pos:Vector3],
     onAdvanceTime: [mins: number]
 }>()
+
+
 
 // Make the focus point of the camera a bit off center on the canvas
 watch(() => [sizes.width.value, sizes.height.value, props.xOffset], () => {
@@ -77,7 +80,6 @@ onAfterRender(({ delta }) => {
     }
 })
 
-
 watch(() => [
     camera.value?.position.x,
     camera.value?.position.y,
@@ -89,10 +91,21 @@ watch(() => [
     }
 }, {immediate: true})
 
-</script>
 
-<template>
-    <TresOrbitControls v-if="renderer" :args="[camera, renderer?.domElement]" :enable-damping="false"
-        :rotate-speed="0.5" :enable-pan="false" :target="[0,0,0]" />
-</template>
+// create the controls
+// dont use the extend({OrbitControls}) + <TresOrbitControls/> pattern because I can't find a way to call update()
+let controls: OrbitControls;
+watch(() => [renderer.value, camera.value], () => {
+    if (!controls && renderer.value && camera.value) {
+        camera.value?.position.set(7, 7, 7);
+        controls = new OrbitControls((camera.value) as PerspectiveCamera, renderer.value.domElement)
+        controls.target = props.target
+        controls.enableDamping = false;
+        controls.rotateSpeed = 0.5
+        controls.enablePan = false
+        controls.update()
+    }
+}, {immediate:true})
+
+</script>
 

@@ -14,13 +14,13 @@
     "@vuelidate/validators": "^2.0.4",
     "color-interpolate": "^1.0.5",
     "core-js": "^3.8.3",
-    "three": "^0.165.0",
+    "three": "^0.178.0",
     "vue": "^3.2.13",
     "vue3-popper": "^1.5.0",
     "vue3-tour": "^1.0.2"
   },
   "devDependencies": {
-    "@types/three": "^0.165.0",
+    "@types/three": "^0.178.1",
     "@typescript-eslint/eslint-plugin": "^5.4.0",
     "@typescript-eslint/parser": "^5.4.0",
     "@vue/cli-plugin-babel": "~5.0.0",

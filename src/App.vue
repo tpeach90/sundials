@@ -10,7 +10,7 @@
     import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
     import { BasicShadowMap, Vector3, Euler } from 'three';
-    import { dateToString, horizontalToActualCoords, calculateSunHorizontalCoords, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime } from '@/calculations';
+    import { dateToString, clamp, horizontalToActualCoords, calculateSunHorizontalCoordsFromUTC, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime, calculatePolarDayDeclination, calculateObliquityOfTheEcliptic } from '@/calculations';
     import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
     import CameraHelper from './components/CameraHelper.vue';
     import RendererHelper from './components/RendererHelper.vue';
@@ -24,8 +24,9 @@
      * Config
      */
     const sundialOrigin = new Vector3(0, -0.5, 0);
-    const sundialRadius = 5;
-    const projectionRadius = 4;
+    const cameraTarget = sundialOrigin.clone();
+    const traditionalSundialRadius = 5;
+    const pointSundialRadius = 4;
     const numeralDistanceFromSundialOrigin = 4;
     const zoomSpeed = 3;
 
@@ -42,19 +43,23 @@
     let autoSelectTimeZone = ref(true);
     /** +/- minutes UTC */
     let timeZone = ref<number>(0);
-    // let numerals = ref<"roman"|"arabic">("arabic");
     let sunRaysPassThroughEarth = ref(false);
-    let hourLineStyle = ref<"solar"|"standard">("standard");
+    let traditionalSundialHourLineStyle = ref<"solar"|"standard">("standard");
+    let pointShadowTraceHourLineStyle = ref<"modern-local"|"modern-mean-solar"|"modern-apparent-solar"|"babylonian"|"italian"|"seasonal">("modern-local");
     let sundialType = ref<"dialAndGnomon" | "pointSundial">("dialAndGnomon")
     let slant = ref<number>(0);
     let rotation = ref<number>(0);
-    /**Camera position multiplier per second. < 1 zoom in, > 1 zoom out */
-    let currentZoomPerSecond = ref<number>(1);
-    // slant + rotation.
-    
+    /**Camera position multiplier per second. <1 zoom in, >1 zoom out */
+    let currentZoomPerSecond = ref<number>(1);   
     let gnomonHeight = ref<number>(1)
+    let showEquinoxLine = ref<boolean>(false)
+    let showJuneSolsticeLine = ref<boolean>(true);
+    let showDecemberSolsticeLine = ref<boolean>(true)
+    let showPolarDayLine = ref<boolean>(true);
+    let showPolarNightLine = ref<boolean>(true);
     let timeAdvanceSpeed = ref<number>(0)
     let alwaysDaySkyColor = ref<boolean>(false);
+    let showSundialFaceGrid = ref<boolean>(false);
 
     /**
      * readonly variables
@@ -102,6 +107,7 @@
             }
         })
     })
+   
 
 
     /*
@@ -189,6 +195,17 @@
         if (!v$.value.gnomonHeight.$invalid) gnomonHeight.value = Number.parseFloat(newVal);
     }, { immediate: true })
 
+
+    const visibleDeclinationPlots = computed(() => {
+        const plots: InstanceType<typeof PointSundial>["$props"]["declinationPlots"] = []
+        if (showEquinoxLine.value) plots.push("equinox");
+        if (showDecemberSolsticeLine.value) plots.push("december-solstice")
+        if (showJuneSolsticeLine.value) plots.push("june-solstice")
+        if (showPolarDayLine.value) plots.push("polar-day")
+        if (showPolarNightLine.value) plots.push("polar-night")
+        return plots
+    })
+
     /*
     * Help popups
     */
@@ -214,28 +231,38 @@
         }
         showThreeTimesExplanation.value = show
     }
+    const threeTimesExplanationPopper = ref();
+    onClickOutside(threeTimesExplanationPopper, () => setShowThreeTimesExplanation(false))
 
     /**
      * Set the latitude and longitude when the user clicks on the map.
      */ 
     let mapImage = ref<HTMLImageElement>();
     let mapImageIsBeingClicked = ref(false);
-    function setLatLngFromMap(e:MouseEvent) {
+    function setLatLngFromMap(offsetX: number, offsetY: number) {
         if (mapImage.value) {
-            const longitude = e.offsetX / mapImage.value.width * 360 - 180;
-            const latitude = 90 - e.offsetY / mapImage.value.height * 180;
+            const longitude = clamp(offsetX / mapImage.value.width * 360 - 180, {min:-180, max:180})
+            const latitude = clamp(90 - offsetY / mapImage.value.height * 180, {min:-90, max:90});
             formState.longitude = longitude.toFixed(1);
             formState.latitude = latitude.toFixed(1);
         }
     }
     function mapImageMouseMove(e:MouseEvent) {
-        if (mapImageIsBeingClicked.value) setLatLngFromMap(e)
+        if (mapImageIsBeingClicked.value) setLatLngFromMap(e.offsetX, e.offsetY)
+    }
+    function mapImageTouchMove(e:TouchEvent) {
+        // for touchscreens
+        const rect = mapImage.value?.getBoundingClientRect()
+        if (!rect) return
+        const touch = e.touches[0]
+        setLatLngFromMap(touch.clientX - rect.left, touch.clientY - rect.top)
+
     }
     function mapImageStartClicking() {
         mapImageIsBeingClicked.value = true;
     }
     function mapImageClick(e:MouseEvent) {
-        setLatLngFromMap(e)
+        setLatLngFromMap(e.offsetX, e.offsetY)
     }
 
     // global mouse released fn
@@ -274,7 +301,6 @@
                 timeAdvanceSpeed.value = 0
             }
         }
-        // timeAdvanceSpeed.value = (timeAdvanceSpeed.value + 1) % 4
     }
     function advanceTime(mins:number) {
         localTime.value += mins
@@ -293,13 +319,14 @@
     const nodusRelativePosition = computed(() => new Vector3(0, gnomonHeight.value, 0));
     /** convert local time to UTC +0 */
     const time = computed(() => (((localTime.value - timeZone.value) % 1440) + 1440) % 1440)
-    const sunHorizontalCoords = computed(() => calculateSunHorizontalCoords(day.value, time.value, latitude.value, longitude.value));
+    const sunHorizontalCoords = computed(() => calculateSunHorizontalCoordsFromUTC(day.value, time.value, latitude.value, longitude.value));
     const sunCoords = computed(() => horizontalToActualCoords(sunHorizontalCoords.value.azimuth, sunHorizontalCoords.value.altitude))
     // let gnomonRotation = computed(() => (90-latitude.value)*Math.PI/180);
     const isDaytime = computed(() => sunHorizontalCoords.value.altitude >= 0);
     const statusTextColor = computed(() => isDaytime.value || alwaysDaySkyColor.value ? "black" : "white")
     const timeText = computed(() => timeToString(localTime.value))
     const dateText = computed(() => dateToString(day.value));
+    // mst is within 1 second of UTC at 0° longitude so this is fine
     const meanSolarTime = computed(() => time.value + ((longitude.value/360)*24*60));
     const meanSolarTimeText = computed(() => timeToString(meanSolarTime.value));
     const apparentSolarTime = computed(() => {
@@ -314,18 +341,33 @@
     const timeZoneText = computed(() => timeZoneToString(timeZone.value))
     const sunlightIntensity = computed(() => {
         // a very unscientific way of calculating the apparent sunlight intensity.
-        // have a little bit of sunlight when the sun is below the horizon.
+        // stays at the same value until close to sunset (reasoning is that people's eyes adjust during the daytime)
         if (sunHorizontalCoords.value.altitude > 0.1) return 1;
-        if (sunHorizontalCoords.value.altitude > -0.1) return (sunHorizontalCoords.value.altitude + 0.1)/0.2;
+        if (sunHorizontalCoords.value.altitude > 0) return sunHorizontalCoords.value.altitude/0.1;
         return 0;
     })
     const skyColor = computed(() => {
         if (alwaysDaySkyColor.value) {
             return "#87CEEB"
         }
+        // 1: day, 0: night.
+        let skyColorBrightness = 0
+        if (sunHorizontalCoords.value.altitude > 0.1) skyColorBrightness = 1;
+        else if (sunHorizontalCoords.value.altitude > -0.1) skyColorBrightness = (sunHorizontalCoords.value.altitude+0.1) / 0.2;
         // make the sky look nice innit
-        return interpolate(["#02407a", "#87CEEB"])(sunlightIntensity.value);
+        return interpolate(["#02407a", "#87CEEB"])(skyColorBrightness);
     })
+    /** brightness of sunlight on the sundial face, [0,1] */
+    const sunlightSundialFaceIntensity = computed(() => {
+        const sundialNormal = new Vector3(0, 1, 0).applyEuler(sundialRotation.value)
+        const sunVector = new Vector3(sunCoords.value.x, sunCoords.value.y, sunCoords.value.z)
+        // dot product: a.b = |a||b|cosθ.
+        // cosθ is the intensity
+        const intensity = sundialNormal.dot(sunVector) / (sundialNormal.length() * sunVector.length())
+        if (intensity <= 0) return 0
+        else return intensity * sunlightIntensity.value
+    })
+    const gridColorPalette = computed(() => sunlightSundialFaceIntensity.value >= 0.5 ? "light" : "dark")
     const compassRotation = computed(() => {
 
         if (!cameraPosition.value) {
@@ -346,6 +388,18 @@
         }
     })
 
+
+    const polarDayDeclination = computed(() => {
+        const decl = calculatePolarDayDeclination(latitude.value);
+        if (Math.abs(decl) * Math.PI/180 > calculateObliquityOfTheEcliptic(8400.5 + 132 /*2023*/)) {
+            return null
+        } else {
+            return decl
+        }
+    })
+    const polarDayDeclinationText = computed(() => polarDayDeclination.value ? polarDayDeclination.value.toFixed(1) + "°" : "n/a")
+    const polarNightDeclinationText = computed(() => polarDayDeclination.value ? (-polarDayDeclination.value).toFixed(1) + "°" : "n/a")
+
     // previously all this stuff was inlined in the template
     // move all inline processing stuff in the <Tres...> tag props here because this is necessary to make tresjs render frames on demand
     // I have done this with most of the 3d components as well
@@ -354,10 +408,10 @@
     const sunCoordsArray = computed<[number, number, number]>(() => [sunCoords.value.x, sunCoords.value.y, sunCoords.value.z])
     const directionalLightIntensity = computed(() => sunRaysPassThroughEarth.value ? 1 : sunlightIntensity.value)
     const cameraXOffset = computed(() => -(sidebarDims.value.clientWidth)/2)
-    const gridHelperArgs = [50, 50, '#AAAAAA', '#AAAAAA'] as [number, number, string, string]
-    const gridHelperPosition = [0, -8, 0] as [number,number, number]
-    const compassCameraPosition = [0, 10, 0] as [number, number, number]
-    const compassCameraLookAt = [0, 0, 0] as [number, number, number]
+    const gridHelperArgs = [50, 50, '#AAAAAA', '#AAAAAA'] as const
+    const gridHelperPosition = [0, -8, 0] as const
+    const compassCameraPosition = [0, 10, 0] as const
+    const compassCameraLookAt = [0, 0, 0] as const
 
 </script>
 
@@ -379,15 +433,17 @@
             <TresPerspectiveCamera />
             <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
-                :radius="sundialRadius" :hourLineStyle="hourLineStyle" :time-zone="timeZone"
-                :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin" />
+                :radius="traditionalSundialRadius" :hourLineStyle="traditionalSundialHourLineStyle"
+                :time-zone="timeZone" :numeralDistanceFromSundialOrigin="numeralDistanceFromSundialOrigin"
+                :showGrid="showSundialFaceGrid" :gridColorPalette="gridColorPalette" />
 
             <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
-                :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="projectionRadius"
-                :hourLineStyle="hourLineStyle" :time-zone="timeZone" />
+                :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="pointSundialRadius"
+                :hourLineStyle="pointShadowTraceHourLineStyle" :time-zone="timeZone"
+                :show-equinox-line="showEquinoxLine" :declinationPlots="visibleDeclinationPlots" :localTime="localTime"
+                :day="day" :showGrid="showSundialFaceGrid" :gridColorPalette="gridColorPalette" />
 
             <SunObject :position="sunCoords" />
-
 
             <!-- directional light points at :target="[0,0,0]" by default -->
             <TresDirectionalLight :position="sunCoordsArray" :intensity="directionalLightIntensity"
@@ -396,7 +452,7 @@
             <TresGridHelper :args="gridHelperArgs" :position="gridHelperPosition" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
                 @cameraPosChange="pos => cameraPosition = pos" @on-advance-time="advanceTime"
-                :time-advance-speed="timeAdvanceSpeed" />
+                :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" />
             <RendererHelper />
         </TresCanvas>
     </div>
@@ -406,7 +462,7 @@
         <div id="sidebar" ref="sidebar">
             <div id="sidebarContent">
 
-                <a class="sidebar_link" @click="e => {e.preventDefault();toggleWalkthrough()}"
+                <a class="sidebar_link" @click="e => {e.preventDefault(); toggleWalkthrough()}"
                     href="javascript:void(0)">walkthrough</a>
                 ·
                 <a class="sidebar_link" href="https://github.com/tpeach90/sundials/" style="text-decoration: none"
@@ -445,15 +501,16 @@
                     <div
                         style="display: grid; grid-template-columns: min-content auto; grid-template-rows: min-content auto;">
                         <input
-                            style="grid-row: 1; grid-column: 1; margin-right:10px; height:100%; margin-top: 0px; margin-bottom:0px;"
+                            style="grid-row: 1; grid-column: 1; margin-right:10px; height:100%; margin-top: 0px; margin-bottom:0px; touch-action: none"
                             type="range" min="-90" max="90" step="-0.1" class="slider" orient="vertical"
                             v-model="v$.latitude.$model">
                         <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
                         <div style="position:relative; aspect-ratio: 2 / 1;">
                             <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
                                 alt="An outline world map, on which the user can click to set the latitude and longitude."
-                                style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px"
+                                style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px; touch-action: none;"
                                 draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking"
+                                @touchstart="mapImageStartClicking" @touchmove="mapImageTouchMove"
                                 @click="mapImageClick" ref="mapImage">
                             <div id="markerPoint"
                                 :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`">
@@ -528,20 +585,111 @@
                             v-model="v$.gnomonHeight.$model">
                     </div>
                 </div>
+
+
                 <div class="setting" data-v-walkthrough="hour-lines">
                     <label class="fieldTitle">Hour lines</label>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="standardLines" value="standard" v-model="hourLineStyle">
-                        <label for="standardLines" class="fieldOption">Adjusted for time zone and longitude</label>
+
+                    <!-- traditional sundial hour lines -->
+                    <div v-if="sundialType == 'dialAndGnomon'">
+                        <div class="checkboxSetting">
+                            <input type="radio" id="standardLines" value="standard"
+                                v-model="traditionalSundialHourLineStyle">
+                            <label for="standardLines" class="fieldOption">Adjusted for time zone and longitude</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="solarLines" value="solar" v-model="traditionalSundialHourLineStyle">
+                            <label for="solarLines" class="fieldOption">Apparent solar time</label>
+                        </div>
                     </div>
-                    <div class="checkboxSetting">
-                        <input type="radio" id="solarLines" value="solar" v-model="hourLineStyle">
-                        <label for="solarLines" class="fieldOption">Solar time</label>
+
+                    <!-- point shadow trace hour line selector-->
+                    <div v-else-if="sundialType=='pointSundial'" style="margin-left:10px">
+                        <label class="fieldTitle">Modern hours</label>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstModernLocal" value="modern-local"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstModernLocal" class="fieldOption">Local standard time</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstModernMeanSolar" value="modern-mean-solar"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstModernMeanSolar" class="fieldOption">Mean solar time</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstModernApparentSolar" value="modern-apparent-solar"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstModernApparentSolar" class="fieldOption">Apparent solar time</label>
+                        </div>
+                        <label class="fieldTitle" style="margin-top:4px">
+                            Other
+                            <a class="sidebar_link" href="https://www.bcgnomonics.com/types-of-hours"
+                                title="Explanation on bcgnomonics.com" target="_blank">(?)</a>
+                        </label>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstBabylonian" value="babylonian"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstBabylonian" class="fieldOption">Babylonian hours – hours from
+                                sunrise</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstItalian" value="italian" v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstItalian" class="fieldOption">Italian hours – hours from sunset</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="radio" id="pstSeasonal" value="seasonal"
+                                v-model="pointShadowTraceHourLineStyle">
+                            <label for="pstSeasonal" class="fieldOption">Seasonal/unequal hours – sunrise to
+                                sunset</label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- declination lines -->
+                <div v-if="sundialType == 'pointSundial'">
+                    <br>
+                    <div class="setting">
+                        <label class="fieldTitle">Constant-declination curves</label>
+                        <div class="checkboxSetting">
+                            <input type="checkbox" id="showJuneSolsticeLine" v-model="showJuneSolsticeLine"
+                                style="margin-right: 10px; display: inline;">
+                            <label for="showJuneSolsticeLine" class="fieldOption">June solstice (23.44°)</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="checkbox" id="showDecemberSolsticeLine" v-model="showDecemberSolsticeLine"
+                                style="margin-right: 10px; display: inline;">
+                            <label for="showDecemberSolsticeLine" class="fieldOption">December solstice
+                                (-23.44°)</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="checkbox" id="showEquinoxLine" v-model="showEquinoxLine"
+                                style="margin-right: 10px; display: inline;">
+                            <label for="showEquinoxLine" class="fieldOption">Equinox (0°)</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="checkbox" id="showPolarDayLine" v-model="showPolarDayLine"
+                                style="margin-right: 10px; display: inline;">
+                            <label for="showPolarDayLine" class="fieldOption">Polar day boundary (<div
+                                    class="variable-readout">{{ polarDayDeclinationText }}</div>)</label>
+                        </div>
+                        <div class="checkboxSetting">
+                            <input type="checkbox" id="showPolarNightLine" v-model="showPolarNightLine"
+                                style="margin-right: 10px; display: inline;">
+                            <label for="showPolarNightLine" class="fieldOption">Polar night boundary (<div
+                                    class="variable-readout">{{ polarNightDeclinationText }}</div>)</label>
+                        </div>
                     </div>
                 </div>
 
+
+
                 <br>
                 <h2>Misc</h2>
+                <div class="checkboxSetting">
+                    <input type="checkbox" id="showSundialFaceGrid" v-model="showSundialFaceGrid">
+                    <label for="showSundialFaceGrid" class="fieldOption">Sundial grid overlay</label>
+                </div>
                 <div class="checkboxSetting">
                     <input type="checkbox" id="sunRaysPassThroughEarth" v-model="sunRaysPassThroughEarth">
                     <label for="sunRaysPassThroughEarth" class="fieldOption">Light can reach the sundial at
@@ -551,7 +699,6 @@
                     <input type="checkbox" id="alwaysDaySkyColor" v-model="alwaysDaySkyColor">
                     <label for="alwaysDaySkyColor" class="fieldOption">Disable night-time dark sky color</label>
                 </div>
-
                 <br>
 
                 <footer>
@@ -564,7 +711,7 @@
 
         <!-- top right controls -->
         <div id="topRightControls">
-            <div id="compassContainer" title="North">
+            <div id="compassContainer" title="Compass">
                 <TresCanvas render-mode="on-demand">
                     <TresAmbientLight color="#FFFFFF" :intensity="2" />
                     <TresOrthographicCamera :position="compassCameraPosition" :lookAt="compassCameraLookAt"
@@ -621,7 +768,7 @@
             </div>
 
             <!-- 3 times explanation -->
-            <Popper arrow placement="left" disable-click-away :show="showThreeTimesExplanation">
+            <Popper arrow placement="left" :show="showThreeTimesExplanation" ref="threeTimesExplanationPopper">
                 <template #content>
                     <div class="popper_content">
                         <div style="text-align: left">
@@ -876,6 +1023,17 @@
     #copyrightText {
         font-size: 10pt
     }
+
+    input{
+        accent-color: rgb(201, 84, 42)
+    }
+
+    .variable-readout {
+        color: rgb(235, 164, 83);
+        display:inline
+    }
+
+
 
 
 </style>
