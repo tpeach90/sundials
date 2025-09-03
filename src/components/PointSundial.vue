@@ -6,10 +6,14 @@ import { PropType, computed, defineProps, ref, watch } from 'vue'
 import { Euler, Matrix4, Plane, Ray, Vector3 } from 'three';
 import Line2Clipped from './Line2FromCientosPackageAndItsTheSameButYouCanAlsoUseClippingPlanesSoItsNot.vue';
 import { Line2 } from "@tresjs/cientos";
-import { calculateObliquityOfTheEcliptic, calculateShadowDirection, calculateSunHorizontalCoordsFromApparentSolarTime, calculateSunHorizontalCoordsFromBabylonianTime, calculateSunHorizontalCoordsFromUTC, extractCloseAndPadSequence, horizontalToActualCoords, rad, toHorizontalCoords, assertUnreachable, calculateSunHorizontalCoordsFromItalianTime, calculateSunHorizontalCoordsFromSeasonalTime } from '@/calculations';
+import { calculateObliquityOfTheEcliptic, calculateShadowDirection, calculateSunHorizontalCoordsFromApparentSolarTime, calculateSunHorizontalCoordsFromBabylonianTime, calculateSunHorizontalCoordsFromUTC, extractCloseAndPadSequence, horizontalToActualCoords, rad, toHorizontalCoords, assertUnreachable, calculateSunHorizontalCoordsFromItalianTime, calculateSunHorizontalCoordsFromSeasonalTime, calculatePolarDayDeclination } from '@/calculations';
 import SundialLetter from './SundialLetter.vue';
+import SundialFaceGrid from './SundialFaceGrid.vue';
 
-const props = defineProps(
+    // declination plots - plotting the path of the shadow throughout a day at a specific declination
+    type DeclinationPlotLabel = "december-solstice" | "june-solstice" | "equinox" | "polar-day" | "polar-night"
+
+    const props = defineProps(
     {
         show: {
             required: true,
@@ -47,9 +51,25 @@ const props = defineProps(
             required: true,
             type: Number as PropType<number>
         },
-        showEquinoxLine: {
+        declinationPlots: {
             required: true,
+            type: Array as PropType<DeclinationPlotLabel[]>
+        },
+        localTime: {
+            required:true,
+            type: Number as PropType<number>,
+        },
+        day: {
+            required: true,
+            type: Number as PropType<number>,
+        },
+        showGrid: {
+            required:true,
             type: Boolean as PropType<boolean>
+        }, 
+        gridColorPalette: {
+            required: true,
+            type: String as PropType<"light" | "dark">
         }
 
     })
@@ -184,22 +204,15 @@ const props = defineProps(
 
     
     
-    // declination plots - plotting the path of the shadow throughout a day at a specific declination
-    type DeclinationPlotLabel = "december-solstice" | "june-solstice" | "equinox" | "polar-day" | "polar-night"
+
     const declinationPlotHours = [...Array(48).keys()].map(x => x/2)
     const obliquityOfTheEcliptic2023 = calculateObliquityOfTheEcliptic(8400.5 + 132)
     // Note. commented out 0.833's were to adjust for the sun diameter and atmonspheric refraction,
     // but the latter is so variable dependent on temp, pressure, etc that it doesn't really make sense to adjust for this
-    const showPolarDayAndNight = computed(() => Math.abs(freezeProps.value.latitude) > 90 - obliquityOfTheEcliptic2023 * 180 / Math.PI /*+/- 0.833*/)
+    const polarDayAndNightVisible = computed(() => Math.abs(freezeProps.value.latitude) > 90 - obliquityOfTheEcliptic2023 * 180 / Math.PI /*+/- 0.833*/)
     // critical declinations at current lattitude that would cause a polar day/night
     // again, not adjusting for diameter of solar disc or atmospheric refraction.
-    const polarDayDeclination = computed(() => {
-        if (freezeProps.value.latitude >= 0)
-            return rad(90 - freezeProps.value.latitude /*- 0.833*/)
-        else {
-            return rad(-90 - freezeProps.value.latitude /*- 0.833*/) 
-        }
-    })
+    const polarDayDeclination = computed(() => rad(calculatePolarDayDeclination(freezeProps.value.latitude)))
     const polarNightDeclination = computed(() => -polarDayDeclination.value)
     const declinationPlotsParams = computed<{
         label: DeclinationPlotLabel,
@@ -211,31 +224,31 @@ const props = defineProps(
             label: "december-solstice",
             declination: -obliquityOfTheEcliptic2023,
             color: "#ffffff",
-            show: true
+            show: freezeProps.value.declinationPlots.includes("december-solstice")
         },
         {
             label: "june-solstice",
             declination: obliquityOfTheEcliptic2023,
             color: "#ffffff",
-            show: true
+            show: freezeProps.value.declinationPlots.includes("june-solstice")
         },
         {
-            label: "equinox",
+            label: "equinox", // line aka equinoctial line
             declination: 0,
             color: "#ffffff",
-            show: freezeProps.value.showEquinoxLine
+            show: freezeProps.value.declinationPlots.includes("equinox")
         },
         {
             label: "polar-day",
             declination: polarDayDeclination.value,
             color: "#EE442F", // https://venngage.com/blog/color-blind-friendly-palette/
-            show: showPolarDayAndNight.value
+            show: polarDayAndNightVisible.value && freezeProps.value.declinationPlots.includes("polar-day")
         },
         {
             label: "polar-night",
             declination: polarNightDeclination.value,
             color: "#601A4A",
-            show: showPolarDayAndNight.value
+            show: polarDayAndNightVisible.value && freezeProps.value.declinationPlots.includes("polar-night")
         },
     ])
 
@@ -302,11 +315,22 @@ const props = defineProps(
         // if this ray intersercts the sundial plate plane (infinitely extended), then use the winter solstice. Otherwise use the summer solstice.
         const ray = new Ray(gnomonAbsolutePosition.value, new Vector3(0, Math.cos(rad(90-freezeProps.value.latitude)), -Math.sin(rad(90-freezeProps.value.latitude))))
         const intersect = ray.intersectsPlane(platePlane.value)
-        
-        if (["babylonian", "italian", "seasonal"].includes(freezeProps.value.hourLineStyle) && showPolarDayAndNight) {
-            return intersect ? "polar-night" : "polar-day"
-        } else {
-            return intersect ? "december-solstice" : "june-solstice"
+
+        switch (freezeProps.value.hourLineStyle) {
+            case 'modern-local':
+            case 'modern-mean-solar':
+            case 'modern-apparent-solar':
+                return intersect ? "december-solstice" : "june-solstice" 
+            case 'babylonian':
+            case 'italian':
+                if (polarDayAndNightVisible.value) return intersect != (freezeProps.value.latitude < 0) ? "polar-night" : "polar-day"
+                else return intersect ? "december-solstice" : "june-solstice" 
+            case 'seasonal':
+                // if close to/in the arctic/antarctic circle the lines can get very bunched up
+                if (polarDayAndNightVisible.value) return "polar-day"
+                else return intersect ? "december-solstice" : "june-solstice" 
+            default:
+                return assertUnreachable(freezeProps.value.hourLineStyle)
         }
         
     })
@@ -350,11 +374,21 @@ const props = defineProps(
             case 'seasonal':
                 {
                     // get the label to appear on the correct side of the line
-                    // for babylonian and italian, place it on the inside of declination line because the hour lines can get very steep relative to it- 
+                    // place on the INSIDE of the line
                     // placing labels on the outside would make it difficult to mentally connect the labels and hour lines in some cases
-                    let hourLineDirectionMultiplyer = 1
-                    if (["december-solstice", "polar-night"].includes(declinationLineOfNumerals.value)) hourLineDirectionMultiplyer *= -1
-                    if (freezeProps.value.hourLineStyle == "seasonal") hourLineDirectionMultiplyer *= -1
+                    const hourLineDirectionMultiplyer = (() => {
+                        switch (declinationLineOfNumerals.value) {
+                            case 'december-solstice':
+                                return -1
+                            case 'june-solstice':
+                            case 'equinox':
+                                return 1
+                            case 'polar-day':
+                                return freezeProps.value.latitude > 0 ? 1 : -1
+                            case 'polar-night':
+                                return freezeProps.value.latitude > 0 ? -1 : 1
+                        }
+                    })()
                     
                     // approach: use dir between 2 points.
                     return hourLinePlotLines.value.map(({line}) => 
@@ -381,11 +415,13 @@ const props = defineProps(
     const declinationLineOfNumeralsDay = computed(() => {
         switch (declinationLineOfNumerals.value) {
             case "december-solstice":
-            case "polar-night":
                 return 354
             case "june-solstice":
-            case "polar-day":
                 return 171
+            case "polar-day":
+                return freezeProps.value.latitude > 0 ? 171 : 354
+            case "polar-night":
+                return freezeProps.value.latitude > 0 ? 354 : 171
             case 'equinox':
                 return 78
             default:
@@ -419,17 +455,16 @@ const props = defineProps(
 
     )
 
-    /** Some hour systems start at 1. Compute that here. */
+    /** In case any hour systems need to start counting from a number other than 0 this can be accounted for here. */
     const firstHourNumber = computed(() => {
         switch (freezeProps.value.hourLineStyle) {
             case 'modern-local':
             case 'modern-mean-solar':
             case 'modern-apparent-solar':
             case 'italian':
-                return 0
+            case 'seasonal': 
             case 'babylonian':
-            case 'seasonal':
-                return 1
+                return 0
             default:
                 return assertUnreachable(freezeProps.value.hourLineStyle)
         }
@@ -460,21 +495,42 @@ const props = defineProps(
         else return 0.12
     })
 
+    const crosshairLocation = computed(() => {
+        return projectionOnPlate(freezeProps.value.localTime / 60, freezeProps.value.day, "modern-local")
+    })
+    const crosshairSize = 0.1
+
 const plateGeometryArgs = computed<[number, number, number]>(() => [freezeProps.value.radius * 2, 0.1, freezeProps.value.radius * 2])
 const rotationCopy = computed(() => freezeProps.value.rotation.clone())
 const lineToNodusPoints = computed<[number, number, number][]>(() => [[0,0,0], freezeProps.value.gnomonPosition.toArray()])
 const gnomonPositionCopy = computed(() => freezeProps.value.gnomonPosition.clone())
+const crosshairLocationNonNull = computed(() => crosshairLocation.value ?? new Vector3(0,0,0))
+const crosshairLocationExists = computed(() => !!crosshairLocation.value)
+const crosshairPoints0 = [new Vector3(-crosshairSize/2, 0, 0), new Vector3(crosshairSize/2, 0, 0)]
+const crosshairPoints1 = [new Vector3(0, 0, -crosshairSize / 2), new Vector3(0, 0, crosshairSize / 2)]
+const sundialFaceOriginRaised = computed(() => freezeProps.value.origin.clone().add(plateToPlotVector.value))
+
+
 
 </script>
 
 
 <template>
+
+
+
     <!-- plot -->
     <TresObject3D :visible="props.show">
+
+        <!-- grid -->
+        <SundialFaceGrid :sundialRotation="freezeProps.rotation" :show="props.showGrid" :origin="sundialFaceOriginRaised"
+            :radius="freezeProps.radius" :colorPalette="freezeProps.gridColorPalette"/>
+
         <!-- hour lines -->
         <template v-for="hourLine of hourLinePlotLines" :key="hourLine.hour">
-            <TresObject3D :visible="hourLine.show" >
-                <Line2Clipped :line-width="1" :points="hourLine.line" color="#ffffff" :clipping-planes="clippingPlanes" />
+            <TresObject3D :visible="hourLine.show">
+                <Line2Clipped :line-width="1" :points="hourLine.line" color="#ffffff"
+                    :clipping-planes="clippingPlanes" />
             </TresObject3D>
         </template>
         <!-- declination plots -->
@@ -485,6 +541,14 @@ const gnomonPositionCopy = computed(() => freezeProps.value.gnomonPosition.clone
 
             </TresObject3D>
         </template>
+
+        <!-- crosshair -->
+        <TresObject3D :position="crosshairLocationNonNull" :visible="crosshairLocationExists" :rotation="rotationCopy">
+            <Line2Clipped :line-width="1" :points="crosshairPoints0" color="#000000"
+                :clipping-planes="clippingPlanes" />
+            <Line2Clipped :line-width="1" :points="crosshairPoints1" color="#000000"
+                :clipping-planes="clippingPlanes" />
+        </TresObject3D>
 
     </TresObject3D>
 

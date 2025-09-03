@@ -4,3 +4,9 @@ html, body {
     overflow: hidden;
 }
 
+.v-step__button:focus {
+    /* make walkthrough buttons appear the same has hover when using tab navigation */
+    background-color: #fffffff2;
+    color: #50596c
+}
+

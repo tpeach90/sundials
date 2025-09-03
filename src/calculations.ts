@@ -333,6 +333,20 @@ export function calculateShadowDirection(timeAngle: number, latitude: number, pl
 }
 
 /**
+ * Critical sun declination boundary at which a polar day occurs
+ * @param latitude degrees
+ * @returns degrees
+ */
+export function calculatePolarDayDeclination(latitude: number) {
+    if (latitude >= 0)
+        return 90 - latitude /*- 0.833*/
+    else {
+        return -90 - latitude /*- 0.833*/
+    }
+}
+
+
+/**
  * Convert time to string.
  * @param time Minutes from midnight.
  * @returns 
@@ -566,10 +580,6 @@ export function extractCloseAndPadSequence<X>(arr: (X|null)[], length:number, pl
     // testing, check that the line is straight
 
     return line
-}
-
-export function hourToRomanNumeral(hour: number) {
-    return ["XXIV", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI", "XXII", "XXIII"][hour] ?? ""
 }
 
 export function clamp(val: number, bounds:{min?:number, max?:number}) {
