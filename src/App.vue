@@ -430,7 +430,8 @@
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
         <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand">
 
-            <TresPerspectiveCamera />
+            <!-- <TresPerspectiveCamera /> -->
+            <TresOrthographicCamera />
             <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
                 :radius="traditionalSundialRadius" :hourLineStyle="traditionalSundialHourLineStyle"
@@ -440,8 +441,8 @@
             <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
                 :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="pointSundialRadius"
                 :hourLineStyle="pointShadowTraceHourLineStyle" :time-zone="timeZone"
-                :show-equinox-line="showEquinoxLine" :declinationPlots="visibleDeclinationPlots" :localTime="localTime"
-                :day="day" :showGrid="showSundialFaceGrid" :gridColorPalette="gridColorPalette" />
+                :declinationPlots="visibleDeclinationPlots" :localTime="localTime" :day="day"
+                :showGrid="showSundialFaceGrid" :gridColorPalette="gridColorPalette" />
 
             <SunObject :position="sunCoords" />
 
@@ -452,7 +453,8 @@
             <TresGridHelper :args="gridHelperArgs" :position="gridHelperPosition" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
                 @cameraPosChange="pos => cameraPosition = pos" @on-advance-time="advanceTime"
-                :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" />
+                :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" :sundialOrigin="sundialOrigin"
+                :sundialRotation="sundialRotation"/>
             <RendererHelper />
         </TresCanvas>
     </div>

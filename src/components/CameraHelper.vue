@@ -2,9 +2,10 @@
 
 <script lang="ts" setup>
 import { useTresContext, useLoop} from '@tresjs/core';
-import { PerspectiveCamera, Vector3} from 'three';
-import { PropType, watch, defineProps, defineEmits, ref} from 'vue';
-import { OrbitControls } from 'three-stdlib';
+import { Euler, OrthographicCamera, PerspectiveCamera, Plane, Quaternion, Vector3} from 'three';
+import { PropType, watch, defineProps, defineEmits, ref, computed} from 'vue';
+import { OrbitControls, MapControls } from 'three-stdlib';
+import { infiniteLineIntersectWithPlane } from '@/calculations';
 
 
 const {camera,  sizes, renderer, invalidate} = useTresContext();
@@ -26,6 +27,14 @@ const props = defineProps({
     target: {
         required: true,
         type: Object as PropType<Vector3>
+    },
+    sundialRotation: {
+        required: true,
+        type: Object as PropType<Euler>
+    },
+    sundialOrigin: {
+        required: true,
+        type: Object as PropType<Vector3>
     }
 });
 
@@ -34,10 +43,16 @@ const emit = defineEmits<{
     onAdvanceTime: [mins: number]
 }>()
 
+const cameraType = computed(() => {
+    if ((camera.value as PerspectiveCamera | undefined)?.isPerspectiveCamera) return "3d"
+    if ((camera.value as OrthographicCamera | undefined)?.isOrthographicCamera) return "2d"
+    return undefined
+})
 
 
-// Make the focus point of the camera a bit off center on the canvas
-watch(() => [sizes.width.value, sizes.height.value, props.xOffset], () => {
+
+// Make the focus point of the camera a bit off center (horizontal) on the canvas
+watch(() => [sizes.width.value, sizes.height.value, props.xOffset, camera.value], () => {
     const zoomMultiple = (sizes.width.value + Math.abs(props.xOffset) * 2) / sizes.width.value;
     if ((camera.value as PerspectiveCamera | undefined)?.isPerspectiveCamera) {
         (camera.value as PerspectiveCamera).setViewOffset(
@@ -92,20 +107,81 @@ watch(() => [
 }, {immediate: true})
 
 
+const camHeight2d = 10
+
 // create the controls
 // dont use the extend({OrbitControls}) + <TresOrbitControls/> pattern because I can't find a way to call update()
-let controls: OrbitControls;
-watch(() => [renderer.value, camera.value], () => {
-    if (!controls && renderer.value && camera.value) {
+const oldSundialRotation = ref<Euler>();
+let controls3d: OrbitControls;
+let controls2d: MapControls;
+watch(() => [renderer.value, camera.value, cameraType.value], () => {
+    if (!controls3d && renderer.value && camera.value && cameraType.value == "3d") {
         camera.value?.position.set(7, 7, 7);
-        controls = new OrbitControls((camera.value) as PerspectiveCamera, renderer.value.domElement)
-        controls.target = props.target
-        controls.enableDamping = false;
-        controls.rotateSpeed = 0.5
-        controls.enablePan = false
-        controls.update()
+        controls3d = new OrbitControls((camera.value) as PerspectiveCamera, renderer.value.domElement)
+        controls3d.target = props.target
+        controls3d.enableDamping = false;
+        controls3d.rotateSpeed = 0.5
+        controls3d.enablePan = false
+        controls3d.update()
+    }
+    if (!controls2d && renderer.value && camera.value && cameraType.value == "2d") {
+
+        // cam position
+        const sundialNormal = new Vector3(0, 1, 0).applyEuler(props.sundialRotation)
+        const camPosition = props.sundialOrigin.clone().add(sundialNormal.clone().multiplyScalar(camHeight2d))
+        camera.value.position.set(camPosition.x, camPosition.y, camPosition.z)
+        camera.value.up.set(...new Vector3(0, 0, -1).applyEuler(props.sundialRotation).toArray())
+
+        controls2d = new MapControls(camera.value as OrthographicCamera, renderer.value.domElement)
+        controls2d.target.set(...props.sundialOrigin.toArray())
+        controls2d.enableDamping = false
+        controls2d.screenSpacePanning = true
+        controls2d.zoomToCursor = true
+        controls2d.update()
+
+        oldSundialRotation.value = props.sundialRotation.clone()
     }
 }, {immediate:true})
+
+// move orthographic camera when sundial rotation changes
+// do this by comparing the new rotation to the old rotation
+
+watch(() => [props.sundialRotation, cameraType.value], () => {
+    if (controls2d && camera.value && oldSundialRotation.value && cameraType.value == "2d") {
+
+        console.log(oldSundialRotation.value, props.sundialRotation)
+        // work out the point on the sundial face that the point (0,0) of the screen was looking at
+        const oldNormal = new Vector3(0, 1, 0).applyEuler(oldSundialRotation.value)
+        const oldPlane = new Plane(oldNormal, 0).translate(props.sundialOrigin);
+        const newTarget = infiniteLineIntersectWithPlane(oldPlane, camera.value.position, camera.value.getWorldDirection(new Vector3()))
+            // move sundial to (0,0,0)
+            ?.sub(props.sundialOrigin)
+            // remove old sundial rotation
+            .applyQuaternion(new Quaternion().setFromEuler(oldSundialRotation.value).invert())
+            // set y coord to 0 to cancel inaccuracies
+            .setComponent(1, 0)
+            // apply new sundial rotation
+            .applyEuler(props.sundialRotation)
+            // re-apply sundial origin
+            .add(props.sundialOrigin)
+        const newNormal = new Vector3(0, 1, 0).applyEuler(props.sundialRotation)
+        const newPosition = newTarget?.clone().add(newNormal.clone().multiplyScalar(camHeight2d))
+
+        if (newPosition && newTarget) {
+            controls2d.target.set(...newTarget.toArray())
+            camera.value.position.set(...newPosition.toArray())
+            camera.value.up.set(...new Vector3(0, 0, -1).applyEuler(props.sundialRotation).toArray())
+            controls2d.update()
+        }
+
+        oldSundialRotation.value = props.sundialRotation.clone()
+    }
+
+})
+
+// watch(() => [camera.value?.position.toArray()], () => {
+//     console.log(camera.value?.position.toArray())
+// })
 
 </script>
 
