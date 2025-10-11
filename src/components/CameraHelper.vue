@@ -8,7 +8,7 @@ import { OrbitControls, MapControls } from 'three-stdlib';
 import { infiniteLineIntersectWithPlane } from '@/calculations';
 
 
-const {camera,  sizes, renderer, invalidate} = useTresContext();
+const {camera,  sizes, renderer, invalidate, cameras, setCameraActive} = useTresContext();
 
 const props = defineProps({
     xOffset: {
@@ -35,6 +35,10 @@ const props = defineProps({
     sundialOrigin: {
         required: true,
         type: Object as PropType<Vector3>
+    },
+    lockCamera: {
+        required: true,
+        type: Boolean as PropType<boolean>
     }
 });
 
@@ -52,10 +56,11 @@ const cameraType = computed(() => {
 
 
 // Make the focus point of the camera a bit off center (horizontal) on the canvas
+// because of the sidebar
 watch(() => [sizes.width.value, sizes.height.value, props.xOffset, camera.value], () => {
     const zoomMultiple = (sizes.width.value + Math.abs(props.xOffset) * 2) / sizes.width.value;
-    if ((camera.value as PerspectiveCamera | undefined)?.isPerspectiveCamera) {
-        (camera.value as PerspectiveCamera).setViewOffset(
+    if (camera.value) {
+        (camera.value as PerspectiveCamera | OrthographicCamera).setViewOffset(
             sizes.width.value * zoomMultiple,
             sizes.height.value * zoomMultiple,
             props.xOffset > 0 ? props.xOffset * 2 : 0,
@@ -122,6 +127,7 @@ watch(() => [renderer.value, camera.value, cameraType.value], () => {
         controls3d.enableDamping = false;
         controls3d.rotateSpeed = 0.5
         controls3d.enablePan = false
+        controls3d.enabled = !props.lockCamera
         controls3d.update()
     }
     if (!controls2d && renderer.value && camera.value && cameraType.value == "2d") {
@@ -131,32 +137,49 @@ watch(() => [renderer.value, camera.value, cameraType.value], () => {
         const camPosition = props.sundialOrigin.clone().add(sundialNormal.clone().multiplyScalar(camHeight2d))
         camera.value.position.set(camPosition.x, camPosition.y, camPosition.z)
         camera.value.up.set(...new Vector3(0, 0, -1).applyEuler(props.sundialRotation).toArray())
+        // cast to prevent ts errors
+        let c = (camera.value as OrthographicCamera); 
+        c.zoom = 0.07 * window.innerHeight
 
         controls2d = new MapControls(camera.value as OrthographicCamera, renderer.value.domElement)
         controls2d.target.set(...props.sundialOrigin.toArray())
         controls2d.enableDamping = false
         controls2d.screenSpacePanning = true
         controls2d.zoomToCursor = true
+        controls2d.enabled = props.lockCamera
         controls2d.update()
 
         oldSundialRotation.value = props.sundialRotation.clone()
     }
 }, {immediate:true})
 
+// switch between cameras
+watch(() => [props.lockCamera, cameras], () => {
+
+    if (controls2d) controls2d.enabled = props.lockCamera
+    if (controls3d) controls3d.enabled = !props.lockCamera
+
+    for (let cam of cameras.value) {
+        if ((props.lockCamera && (cam as OrthographicCamera).isOrthographicCamera) ||
+            (!props.lockCamera && (cam as PerspectiveCamera).isPerspectiveCamera)) {
+            setCameraActive(cam.uuid)
+            return
+        }
+    }
+}, { immediate: true })
+
 // move orthographic camera when sundial rotation changes
 // do this by comparing the new rotation to the old rotation
-
 watch(() => [props.sundialRotation, cameraType.value], () => {
     if (controls2d && camera.value && oldSundialRotation.value && cameraType.value == "2d") {
 
         console.log(oldSundialRotation.value, props.sundialRotation)
-        // work out the point on the sundial face that the point (0,0) of the screen was looking at
         const oldNormal = new Vector3(0, 1, 0).applyEuler(oldSundialRotation.value)
         const oldPlane = new Plane(oldNormal, 0).translate(props.sundialOrigin);
         const newTarget = infiniteLineIntersectWithPlane(oldPlane, camera.value.position, camera.value.getWorldDirection(new Vector3()))
             // move sundial to (0,0,0)
             ?.sub(props.sundialOrigin)
-            // remove old sundial rotation
+            // un-apply old sundial rotation
             .applyQuaternion(new Quaternion().setFromEuler(oldSundialRotation.value).invert())
             // set y coord to 0 to cancel inaccuracies
             .setComponent(1, 0)
@@ -164,16 +187,15 @@ watch(() => [props.sundialRotation, cameraType.value], () => {
             .applyEuler(props.sundialRotation)
             // re-apply sundial origin
             .add(props.sundialOrigin)
+        if (!newTarget) return
         const newNormal = new Vector3(0, 1, 0).applyEuler(props.sundialRotation)
-        const newPosition = newTarget?.clone().add(newNormal.clone().multiplyScalar(camHeight2d))
+        const newPosition = newTarget.clone().add(newNormal.clone().multiplyScalar(camHeight2d))
 
-        if (newPosition && newTarget) {
-            controls2d.target.set(...newTarget.toArray())
-            camera.value.position.set(...newPosition.toArray())
-            camera.value.up.set(...new Vector3(0, 0, -1).applyEuler(props.sundialRotation).toArray())
-            controls2d.update()
-        }
-
+        controls2d.target.set(...newTarget.toArray())
+        camera.value.position.set(...newPosition.toArray())
+        camera.value.up.set(...new Vector3(0, 0, -1).applyEuler(props.sundialRotation).toArray())
+        controls2d.update()
+        
         oldSundialRotation.value = props.sundialRotation.clone()
     }
 

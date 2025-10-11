@@ -430,7 +430,7 @@
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
         <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand">
 
-            <!-- <TresPerspectiveCamera /> -->
+            <TresPerspectiveCamera />
             <TresOrthographicCamera />
             <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
@@ -454,7 +454,7 @@
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
                 @cameraPosChange="pos => cameraPosition = pos" @on-advance-time="advanceTime"
                 :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" :sundialOrigin="sundialOrigin"
-                :sundialRotation="sundialRotation"/>
+                :sundialRotation="sundialRotation" :lockCamera="true"/>
             <RendererHelper />
         </TresCanvas>
     </div>
