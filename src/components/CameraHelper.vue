@@ -3,7 +3,7 @@
 <script lang="ts" setup>
 import { useTresContext, useLoop} from '@tresjs/core';
 import { Euler, OrthographicCamera, PerspectiveCamera, Plane, Quaternion, Vector3} from 'three';
-import { PropType, watch, defineProps, defineEmits, ref, computed} from 'vue';
+import { PropType, watch, defineProps, defineEmits, ref } from 'vue';
 import { OrbitControls, MapControls } from 'three-stdlib';
 import { infiniteLineIntersectWithPlane } from '@/calculations';
 
@@ -43,16 +43,10 @@ const props = defineProps({
 });
 
 const emit = defineEmits<{
-    cameraPosChange:[pos:Vector3],
+    // cameraPosChange:[pos:Vector3],
+    cameraQuaternionChange:[quaternion:Quaternion]
     onAdvanceTime: [mins: number]
 }>()
-
-const cameraType = computed(() => {
-    if ((camera.value as PerspectiveCamera | undefined)?.isPerspectiveCamera) return "3d"
-    if ((camera.value as OrthographicCamera | undefined)?.isOrthographicCamera) return "2d"
-    return undefined
-})
-
 
 
 // Make the focus point of the camera a bit off center (horizontal) on the canvas
@@ -71,7 +65,7 @@ watch(() => [sizes.width.value, sizes.height.value, props.xOffset, camera.value]
 }, {immediate: true})
 
 
-
+// start/stop render loop
 const { onBeforeRender, onAfterRender, pause, resume } = useLoop()
 watch(() => [props.zoomPerSecond, props.timeAdvanceSpeed], () => {
     if (props.zoomPerSecond != 1 || props.timeAdvanceSpeed != 0) {
@@ -80,25 +74,38 @@ watch(() => [props.zoomPerSecond, props.timeAdvanceSpeed], () => {
         pause()
     }
 }, {immediate: true})
-// adjust zoom
+
+
+let leftoverMinFractionFromLastFrame = ref<number>(0)
+
 onBeforeRender(({ delta }) => {
+    // adjust zoom
     if (camera.value && props.zoomPerSecond != 1) {
         const zoomThisFrame = Math.pow(props.zoomPerSecond, delta)
-        camera.value.position.x *= zoomThisFrame
-        camera.value.position.y *= zoomThisFrame
-        camera.value.position.z *= zoomThisFrame
+        if (props.lockCamera) {
+            let c = (camera.value as OrthographicCamera);
+            if (c.isOrthographicCamera) {
+                c.zoom /= zoomThisFrame
+                controls2d.update()
+            }
+        } else {
+            camera.value.position.multiplyScalar(zoomThisFrame)
+        }
+    }
+
+    // adjust sundial time
+    if (props.timeAdvanceSpeed != 0) {
+        const fractionalMinsToAdd = delta * props.timeAdvanceSpeed / 70 * 1000 + leftoverMinFractionFromLastFrame.value
+        const wholeMins = Math.floor(fractionalMinsToAdd)
+        leftoverMinFractionFromLastFrame.value = fractionalMinsToAdd % 1
+        if (wholeMins > 0) {
+            emit('onAdvanceTime', wholeMins)
+        }
     }
 })
-// adjust sundial time
-let leftoverMinFractionFromLastFrame = ref<number>(0)
-onAfterRender(({ delta }) => {
-    const fractionalMinsToAdd = delta * props.timeAdvanceSpeed / 70 * 1000 + leftoverMinFractionFromLastFrame.value
-    const wholeMins = Math.floor(fractionalMinsToAdd)
-    leftoverMinFractionFromLastFrame.value = fractionalMinsToAdd % 1
-    if (wholeMins > 0) {
-        emit('onAdvanceTime', wholeMins)
-    }
-})
+
+
+
 
 watch(() => [
     camera.value?.position.x,
@@ -106,21 +113,49 @@ watch(() => [
     camera.value?.position.z,
 ], () => {
     if (camera.value) {
+        // I think this is necessary because we're adding the controls outside of tresjs
         invalidate()
-        emit("cameraPosChange", camera.value.position.clone())
+    }
+}, {immediate: true})
+
+watch(() => [
+    camera.value?.quaternion.w,
+    camera.value?.quaternion.x,
+    camera.value?.quaternion.y,
+    camera.value?.quaternion.z,
+], () => {
+    if (camera.value) {
+        emit("cameraQuaternionChange", camera.value.quaternion.clone())
     }
 }, {immediate: true})
 
 
-const camHeight2d = 10
+const camHeight2d = 5
 
-// create the controls
-// dont use the extend({OrbitControls}) + <TresOrbitControls/> pattern because I can't find a way to call update()
+
 const oldSundialRotation = ref<Euler>();
 let controls3d: OrbitControls;
 let controls2d: MapControls;
-watch(() => [renderer.value, camera.value, cameraType.value], () => {
-    if (!controls3d && renderer.value && camera.value && cameraType.value == "3d") {
+
+// switch between cameras
+watch(() => [props.lockCamera, cameras], () => {
+
+    if (controls2d) controls2d.enabled = props.lockCamera
+    if (controls3d) controls3d.enabled = !props.lockCamera
+
+    for (let cam of cameras.value) {
+        if ((props.lockCamera && (cam as OrthographicCamera).isOrthographicCamera) ||
+            (!props.lockCamera && (cam as PerspectiveCamera).isPerspectiveCamera)) {
+            setCameraActive(cam.uuid)
+            return
+        }
+    }
+}, { immediate: true })
+
+// create the controls when each camera is first active
+// dont use the extend({OrbitControls}) + <TresOrbitControls/> pattern because I can't find a way to call update()
+watch(() => [renderer.value, camera.value, props.lockCamera], () => {
+    if (!controls3d && renderer.value && camera.value && !props.lockCamera) {
         camera.value?.position.set(7, 7, 7);
         controls3d = new OrbitControls((camera.value) as PerspectiveCamera, renderer.value.domElement)
         controls3d.target = props.target
@@ -130,7 +165,7 @@ watch(() => [renderer.value, camera.value, cameraType.value], () => {
         controls3d.enabled = !props.lockCamera
         controls3d.update()
     }
-    if (!controls2d && renderer.value && camera.value && cameraType.value == "2d") {
+    if (!controls2d && renderer.value && camera.value && props.lockCamera) {
 
         // cam position
         const sundialNormal = new Vector3(0, 1, 0).applyEuler(props.sundialRotation)
@@ -153,27 +188,13 @@ watch(() => [renderer.value, camera.value, cameraType.value], () => {
     }
 }, {immediate:true})
 
-// switch between cameras
-watch(() => [props.lockCamera, cameras], () => {
 
-    if (controls2d) controls2d.enabled = props.lockCamera
-    if (controls3d) controls3d.enabled = !props.lockCamera
-
-    for (let cam of cameras.value) {
-        if ((props.lockCamera && (cam as OrthographicCamera).isOrthographicCamera) ||
-            (!props.lockCamera && (cam as PerspectiveCamera).isPerspectiveCamera)) {
-            setCameraActive(cam.uuid)
-            return
-        }
-    }
-}, { immediate: true })
 
 // move orthographic camera when sundial rotation changes
 // do this by comparing the new rotation to the old rotation
-watch(() => [props.sundialRotation, cameraType.value], () => {
-    if (controls2d && camera.value && oldSundialRotation.value && cameraType.value == "2d") {
+watch(() => [props.sundialRotation, props.lockCamera], () => {
+    if (controls2d && camera.value && oldSundialRotation.value && props.lockCamera) {
 
-        console.log(oldSundialRotation.value, props.sundialRotation)
         const oldNormal = new Vector3(0, 1, 0).applyEuler(oldSundialRotation.value)
         const oldPlane = new Plane(oldNormal, 0).translate(props.sundialOrigin);
         const newTarget = infiniteLineIntersectWithPlane(oldPlane, camera.value.position, camera.value.getWorldDirection(new Vector3()))
@@ -200,10 +221,6 @@ watch(() => [props.sundialRotation, cameraType.value], () => {
     }
 
 })
-
-// watch(() => [camera.value?.position.toArray()], () => {
-//     console.log(camera.value?.position.toArray())
-// })
 
 </script>
 

@@ -9,7 +9,7 @@
     import SunObject from './components/SunObject.vue';
     import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
-    import { BasicShadowMap, Vector3, Euler } from 'three';
+    import { BasicShadowMap, Vector3, Euler, Quaternion } from 'three';
     import { dateToString, clamp, horizontalToActualCoords, calculateSunHorizontalCoordsFromUTC, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime, calculatePolarDayDeclination, calculateObliquityOfTheEcliptic } from '@/calculations';
     import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
     import CameraHelper from './components/CameraHelper.vue';
@@ -60,11 +60,12 @@
     let timeAdvanceSpeed = ref<number>(0)
     let alwaysDaySkyColor = ref<boolean>(false);
     let showSundialFaceGrid = ref<boolean>(false);
+    let lockCamera = ref<boolean>(false);
 
     /**
      * readonly variables
      */
-    let cameraPosition = ref<Vector3>()
+    let cameraQuaternion = ref<Quaternion>()
 
     /*
      * Allow the time to be input manually.
@@ -368,17 +369,7 @@
         else return intensity * sunlightIntensity.value
     })
     const gridColorPalette = computed(() => sunlightSundialFaceIntensity.value >= 0.5 ? "light" : "dark")
-    const compassRotation = computed(() => {
 
-        if (!cameraPosition.value) {
-            return new Euler()
-        }
-
-        const cameraDistance = cameraPosition.value.distanceTo(new Vector3(0,0,0))
-        const altitude = Math.asin(cameraPosition.value.y/cameraDistance);
-        const azimouth = Math.atan2(cameraPosition.value.z, cameraPosition.value.x)
-        return new Euler(altitude - Math.PI / 2, azimouth - Math.PI/2, 0, 'XYZ')
-    })
 
     const timeAdvanceButtonText = computed(() => {
         if (timeAdvanceSpeed.value == 0) {
@@ -410,7 +401,7 @@
     const cameraXOffset = computed(() => -(sidebarDims.value.clientWidth)/2)
     const gridHelperArgs = [50, 50, '#AAAAAA', '#AAAAAA'] as const
     const gridHelperPosition = [0, -8, 0] as const
-    const compassCameraPosition = [0, 10, 0] as const
+    const compassCameraPosition = [0, 0, 10] as const
     const compassCameraLookAt = [0, 0, 0] as const
 
 </script>
@@ -452,9 +443,9 @@
             <TresAmbientLight color="#AAAAAA" />
             <TresGridHelper :args="gridHelperArgs" :position="gridHelperPosition" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
-                @cameraPosChange="pos => cameraPosition = pos" @on-advance-time="advanceTime"
+                @cameraQuaternionChange="q => cameraQuaternion = q.clone()" @on-advance-time="advanceTime"
                 :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" :sundialOrigin="sundialOrigin"
-                :sundialRotation="sundialRotation" :lockCamera="true"/>
+                :sundialRotation="sundialRotation" :lockCamera="lockCamera" />
             <RendererHelper />
         </TresCanvas>
     </div>
@@ -718,23 +709,28 @@
                     <TresAmbientLight color="#FFFFFF" :intensity="2" />
                     <TresOrthographicCamera :position="compassCameraPosition" :lookAt="compassCameraLookAt"
                         :zoom="15" />
-                    <CompassObject :rotation="compassRotation" />
+                    <CompassObject :sundialCameraQuaternion="cameraQuaternion" />
                 </TresCanvas>
                 <div style="position:absolute; width:100%; height:100%; top:0; left:0" title="North"></div>
             </div>
+            <button class="zoomControl" @click="() => lockCamera = !lockCamera"
+                :title="lockCamera ? 'Unlock camera' : 'Lock camera to sundial face'">
+                <img src="./assets/cameralocked.svg" height="100%" />
+            </button>
             <button class="zoomControl" @keydown.enter="() => { currentZoomPerSecond = 1 / zoomSpeed }"
                 @keyup.enter="() => { currentZoomPerSecond = 1 }"
                 @mousedown="() => { currentZoomPerSecond = 1 / zoomSpeed }"
                 @mouseup="() => { currentZoomPerSecond = 1 }" @pointerleave="() => { currentZoomPerSecond = 1 }"
                 @touchstart="() => { currentZoomPerSecond = 1 / zoomSpeed }"
-                @touchend="() => { currentZoomPerSecond = 1 }">
+                @touchend="() => { currentZoomPerSecond = 1 }" title="Zoom in">
                 +
             </button>
             <button class="zoomControl" @keydown.enter="() => { currentZoomPerSecond = zoomSpeed }"
                 @keyup.enter="() => { currentZoomPerSecond = 1 }"
                 @mousedown="() => { currentZoomPerSecond = zoomSpeed }" @mouseup="() => { currentZoomPerSecond = 1 }"
                 @pointerleave="() => { currentZoomPerSecond = 1 }"
-                @touchstart="() => { currentZoomPerSecond = zoomSpeed }" @touchend="() => { currentZoomPerSecond = 1 }">
+                @touchstart="() => { currentZoomPerSecond = zoomSpeed }" @touchend="() => { currentZoomPerSecond = 1 }"
+                title="Zoom out">
                 -
             </button>
 
@@ -954,8 +950,9 @@
         display:flex;
         align-items: center;
         justify-content: center;
-        aspect-ratio: 1/1;
-        min-height : 25px;
+        aspect-ratio: 1 / 1;
+        max-height : 25px;
+        max-width: 25px;
         background-color:brown;
         pointer-events: all;
         margin:5px;
@@ -964,7 +961,7 @@
         font-size:15pt;
         opacity:1;
         user-select: none;
-        color:white
+        color:white;
     }
     .zoomControl:hover {
         opacity:0.5
@@ -1003,7 +1000,8 @@
     #mapImage {
         width:100%;
         aspect-ratio: 2 / 1;
-        user-select: none
+        user-select: none;
+        cursor: crosshair
     }
 
     #compassContainer {
