@@ -24,7 +24,7 @@
      * Config
      */
     const sundialOrigin = new Vector3(0, -0.5, 0);
-    const cameraTarget = sundialOrigin.clone();
+    const cameraTarget = new Vector3(0, -1, 0)//sundialOrigin.clone();
     const traditionalSundialRadius = 5;
     const pointSundialRadius = 4;
     const numeralDistanceFromSundialOrigin = 4;
@@ -419,7 +419,7 @@
 
     <!-- setting the canvas to window-size messes up the Line2 rendering for some reason. Instead, make it fill an entire screen div. -->
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
-        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand">
+        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand" id="sundial"> 
 
             <TresPerspectiveCamera />
             <TresOrthographicCamera />
@@ -715,7 +715,8 @@
             </div>
             <button class="zoomControl" @click="() => lockCamera = !lockCamera"
                 :title="lockCamera ? 'Unlock camera' : 'Lock camera to sundial face'">
-                <img src="./assets/cameralocked.svg" height="100%" />
+                <img v-show="lockCamera" src="./assets/cameralocked.svg" height="100%" alt="Camera locked"/>
+                <img v-show="!lockCamera" src="./assets/cameraunlocked.svg" height="100%" alt="Camera unlocked"/>
             </button>
             <button class="zoomControl" @keydown.enter="() => { currentZoomPerSecond = 1 / zoomSpeed }"
                 @keyup.enter="() => { currentZoomPerSecond = 1 }"
@@ -835,6 +836,10 @@
         padding: 20px;
         width:100%;
         box-sizing: border-box;
+    }
+
+    #sundial {
+        cursor:grab
     }
 
     .horizontal_settings {
@@ -1032,8 +1037,6 @@
         color: rgb(235, 164, 83);
         display:inline
     }
-
-
 
 
 </style>

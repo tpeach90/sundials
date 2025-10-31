@@ -3,7 +3,7 @@
 <script lang="ts" setup>
 import { useTresContext, useLoop} from '@tresjs/core';
 import { Euler, OrthographicCamera, PerspectiveCamera, Plane, Quaternion, Vector3} from 'three';
-import { PropType, watch, defineProps, defineEmits, ref } from 'vue';
+import { PropType, watch, defineProps, defineEmits, ref, onMounted } from 'vue';
 import { OrbitControls, MapControls } from 'three-stdlib';
 import { infiniteLineIntersectWithPlane } from '@/calculations';
 
@@ -48,7 +48,6 @@ const emit = defineEmits<{
     onAdvanceTime: [mins: number]
 }>()
 
-
 // Make the focus point of the camera a bit off center (horizontal) on the canvas
 // because of the sidebar
 watch(() => [sizes.width.value, sizes.height.value, props.xOffset, camera.value], () => {
@@ -66,7 +65,7 @@ watch(() => [sizes.width.value, sizes.height.value, props.xOffset, camera.value]
 
 
 // start/stop render loop
-const { onBeforeRender, onAfterRender, pause, resume } = useLoop()
+const { onBeforeRender, pause, resume } = useLoop()
 watch(() => [props.zoomPerSecond, props.timeAdvanceSpeed], () => {
     if (props.zoomPerSecond != 1 || props.timeAdvanceSpeed != 0) {
         resume()
