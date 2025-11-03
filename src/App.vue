@@ -265,13 +265,6 @@
     function mapImageClick(e:MouseEvent) {
         setLatLngFromMap(e.offsetX, e.offsetY)
     }
-    const markerPoint = ref<HTMLDivElement>()
-    watch(() => [latitude.value, longitude.value, markerPoint.value], () => {
-        // move marker point
-        if (!markerPoint.value) return
-        markerPoint.value.style.top = `${(90 - latitude.value) * 100 / 180}%`
-        markerPoint.value.style.left = `${(longitude.value + 180) * 100 / 360 }%`
-    },{immediate:true})
 
     // global mouse released fn
     onMounted(() => {
@@ -506,13 +499,13 @@
                             type="range" min="-90" max="90" step="-0.1" class="slider" orient="vertical"
                             v-model="v$.latitude.$model">
                         <div style="position:relative; aspect-ratio: 2 / 1;">
-                            <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
-                                alt="A world map"
+                            <img src="./assets/world-map-coordinates-correct.png" id="mapImage" alt="A world map"
                                 style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px; touch-action: none;"
                                 draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking"
                                 @touchstart="mapImageStartClicking" @touchmove="mapImageTouchMove"
                                 @click="mapImageClick" ref="mapImage">
-                            <div id="markerPoint" ref="markerPoint">
+                            <div id="markerPoint"
+                                :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude + 180) * 100 / 360}%`">
                             </div>
                         </div>
 
