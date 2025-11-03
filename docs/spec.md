@@ -37,7 +37,7 @@
         - Sun in sky (C) ✅
         - Night/day with nice lighting (C) ✅
         - Time and date displayed on screen ✅
-    - 2D (C) ⬜
+    - 2D (C) ✅
     - Printable (C) ⬜
 - Interactive sliders ✅
     - Time of year ✅
