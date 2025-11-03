@@ -506,8 +506,8 @@ const lineToNodusPoints = computed<[number, number, number][]>(() => [[0,0,0], f
 const gnomonPositionCopy = computed(() => freezeProps.value.gnomonPosition.clone())
 const crosshairLocationNonNull = computed(() => crosshairLocation.value ?? new Vector3(0,0,0))
 const crosshairLocationExists = computed(() => !!crosshairLocation.value)
-const crosshairPoints0 = [new Vector3(-crosshairSize/2, 0, 0), new Vector3(crosshairSize/2, 0, 0)]
-const crosshairPoints1 = [new Vector3(0, 0, -crosshairSize / 2), new Vector3(0, 0, crosshairSize / 2)]
+const crosshairPoints0 = [new Vector3(-crosshairSize / 4 * Math.sqrt(2), 0, -crosshairSize / 4 * Math.sqrt(2)), new Vector3(crosshairSize / 4 * Math.sqrt(2), 0, crosshairSize / 4 * Math.sqrt(2))]
+const crosshairPoints1 = [new Vector3(-crosshairSize / 4 * Math.sqrt(2), 0, crosshairSize / 4 * Math.sqrt(2)), new Vector3(crosshairSize / 4 * Math.sqrt(2), 0, -crosshairSize / 4 * Math.sqrt(2))]
 const sundialFaceOriginRaised = computed(() => freezeProps.value.origin.clone().add(plateToPlotVector.value))
 
 

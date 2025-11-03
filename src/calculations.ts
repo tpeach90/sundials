@@ -1,4 +1,4 @@
-import { Matrix3, Plane, Ray, Vector3 } from "three";
+import { Euler, Matrix3, Plane, Quaternion, Ray, Vector3 } from "three";
 
 export function rad(degrees: number) {
     return degrees * Math.PI/180
@@ -601,4 +601,9 @@ export function randomColor() {
 // eslint-disable-next-line
 export function assertUnreachable(x: never) : never {
     throw new Error("Didn't expect to get here");
+}
+
+// https://stackoverflow.com/a/42770030
+export function inverseEuler(euler: Euler) {
+    return new Euler().setFromQuaternion( new Quaternion().setFromEuler( euler ).invert() );
 }

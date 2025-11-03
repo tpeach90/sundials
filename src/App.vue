@@ -9,7 +9,7 @@
     import SunObject from './components/SunObject.vue';
     import { decimal, helpers, maxValue, minValue, required } from '@vuelidate/validators';
     import useVuelidate from '@vuelidate/core';
-    import { BasicShadowMap, Vector3, Euler } from 'three';
+    import { BasicShadowMap, Vector3, Euler, Quaternion } from 'three';
     import { dateToString, clamp, horizontalToActualCoords, calculateSunHorizontalCoordsFromUTC, timeToString, timeZoneToString, longitudeToTimeZone, stringToTime, calculatePolarDayDeclination, calculateObliquityOfTheEcliptic } from '@/calculations';
     import DialAndGnomonSundial from './components/DialAndGnomonSundial.vue';
     import CameraHelper from './components/CameraHelper.vue';
@@ -24,7 +24,7 @@
      * Config
      */
     const sundialOrigin = new Vector3(0, -0.5, 0);
-    const cameraTarget = sundialOrigin.clone();
+    const cameraTarget = new Vector3(0, -1, 0)//sundialOrigin.clone();
     const traditionalSundialRadius = 5;
     const pointSundialRadius = 4;
     const numeralDistanceFromSundialOrigin = 4;
@@ -60,11 +60,12 @@
     let timeAdvanceSpeed = ref<number>(0)
     let alwaysDaySkyColor = ref<boolean>(false);
     let showSundialFaceGrid = ref<boolean>(false);
+    let snapCamera = ref<boolean>(false);
 
     /**
      * readonly variables
      */
-    let cameraPosition = ref<Vector3>()
+    let cameraQuaternion = ref<Quaternion>()
 
     /*
      * Allow the time to be input manually.
@@ -368,17 +369,7 @@
         else return intensity * sunlightIntensity.value
     })
     const gridColorPalette = computed(() => sunlightSundialFaceIntensity.value >= 0.5 ? "light" : "dark")
-    const compassRotation = computed(() => {
 
-        if (!cameraPosition.value) {
-            return new Euler()
-        }
-
-        const cameraDistance = cameraPosition.value.distanceTo(new Vector3(0,0,0))
-        const altitude = Math.asin(cameraPosition.value.y/cameraDistance);
-        const azimouth = Math.atan2(cameraPosition.value.z, cameraPosition.value.x)
-        return new Euler(altitude - Math.PI / 2, azimouth - Math.PI/2, 0, 'XYZ')
-    })
 
     const timeAdvanceButtonText = computed(() => {
         if (timeAdvanceSpeed.value == 0) {
@@ -410,7 +401,7 @@
     const cameraXOffset = computed(() => -(sidebarDims.value.clientWidth)/2)
     const gridHelperArgs = [50, 50, '#AAAAAA', '#AAAAAA'] as const
     const gridHelperPosition = [0, -8, 0] as const
-    const compassCameraPosition = [0, 10, 0] as const
+    const compassCameraPosition = [0, 0, 10] as const
     const compassCameraLookAt = [0, 0, 0] as const
 
 </script>
@@ -428,9 +419,11 @@
 
     <!-- setting the canvas to window-size messes up the Line2 rendering for some reason. Instead, make it fill an entire screen div. -->
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
-        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand">
+        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand"
+            id="sundial">
 
             <TresPerspectiveCamera />
+            <TresOrthographicCamera />
             <DialAndGnomonSundial :show="showDialAndGnomonSundial" :latitude="latitude" :longitude="longitude"
                 :origin="sundialOrigin" :rotation="sundialRotation" :gnomon-position="gnomonRelativePosition"
                 :radius="traditionalSundialRadius" :hourLineStyle="traditionalSundialHourLineStyle"
@@ -440,8 +433,8 @@
             <PointSundial :show="showPointSundial" :latitude="latitude" :longitude="longitude" :origin="sundialOrigin"
                 :rotation="sundialRotation" :gnomon-position="nodusRelativePosition" :radius="pointSundialRadius"
                 :hourLineStyle="pointShadowTraceHourLineStyle" :time-zone="timeZone"
-                :show-equinox-line="showEquinoxLine" :declinationPlots="visibleDeclinationPlots" :localTime="localTime"
-                :day="day" :showGrid="showSundialFaceGrid" :gridColorPalette="gridColorPalette" />
+                :declinationPlots="visibleDeclinationPlots" :localTime="localTime" :day="day"
+                :showGrid="showSundialFaceGrid" :gridColorPalette="gridColorPalette" />
 
             <SunObject :position="sunCoords" />
 
@@ -451,8 +444,9 @@
             <TresAmbientLight color="#AAAAAA" />
             <TresGridHelper :args="gridHelperArgs" :position="gridHelperPosition" />
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
-                @cameraPosChange="pos => cameraPosition = pos" @on-advance-time="advanceTime"
-                :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" />
+                @cameraQuaternionChange="q => cameraQuaternion = q.clone()" @on-advance-time="advanceTime"
+                :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" :sundialOrigin="sundialOrigin"
+                :sundialRotation="sundialRotation" :snapCamera="snapCamera" />
             <RendererHelper />
         </TresCanvas>
     </div>
@@ -504,16 +498,14 @@
                             style="grid-row: 1; grid-column: 1; margin-right:10px; height:100%; margin-top: 0px; margin-bottom:0px; touch-action: none"
                             type="range" min="-90" max="90" step="-0.1" class="slider" orient="vertical"
                             v-model="v$.latitude.$model">
-                        <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
                         <div style="position:relative; aspect-ratio: 2 / 1;">
-                            <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
-                                alt="An outline world map, on which the user can click to set the latitude and longitude."
+                            <img src="./assets/world-map-coordinates-correct.png" id="mapImage" alt="A world map"
                                 style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px; touch-action: none;"
                                 draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking"
                                 @touchstart="mapImageStartClicking" @touchmove="mapImageTouchMove"
                                 @click="mapImageClick" ref="mapImage">
                             <div id="markerPoint"
-                                :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`">
+                                :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude + 180) * 100 / 360}%`">
                             </div>
                         </div>
 
@@ -624,7 +616,7 @@
                         <label class="fieldTitle" style="margin-top:4px">
                             Other
                             <a class="sidebar_link" href="https://www.bcgnomonics.com/types-of-hours"
-                                title="Explanation on bcgnomonics.com" target="_blank">(?)</a>
+                                title="Explanation on bcgnomonics.com" target="_blank">(? - bcgnomonics.com)</a>
                         </label>
                         <div class="checkboxSetting">
                             <input type="radio" id="pstBabylonian" value="babylonian"
@@ -711,12 +703,12 @@
 
         <!-- top right controls -->
         <div id="topRightControls">
-            <div id="compassContainer" title="Compass">
+            <div id="compassContainer" title="North direction">
                 <TresCanvas render-mode="on-demand">
                     <TresAmbientLight color="#FFFFFF" :intensity="2" />
                     <TresOrthographicCamera :position="compassCameraPosition" :lookAt="compassCameraLookAt"
                         :zoom="15" />
-                    <CompassObject :rotation="compassRotation" />
+                    <CompassObject :sundialCameraQuaternion="cameraQuaternion" />
                 </TresCanvas>
                 <div style="position:absolute; width:100%; height:100%; top:0; left:0" title="North"></div>
             </div>
@@ -725,15 +717,21 @@
                 @mousedown="() => { currentZoomPerSecond = 1 / zoomSpeed }"
                 @mouseup="() => { currentZoomPerSecond = 1 }" @pointerleave="() => { currentZoomPerSecond = 1 }"
                 @touchstart="() => { currentZoomPerSecond = 1 / zoomSpeed }"
-                @touchend="() => { currentZoomPerSecond = 1 }">
+                @touchend="() => { currentZoomPerSecond = 1 }" title="Zoom in">
                 +
             </button>
             <button class="zoomControl" @keydown.enter="() => { currentZoomPerSecond = zoomSpeed }"
                 @keyup.enter="() => { currentZoomPerSecond = 1 }"
                 @mousedown="() => { currentZoomPerSecond = zoomSpeed }" @mouseup="() => { currentZoomPerSecond = 1 }"
                 @pointerleave="() => { currentZoomPerSecond = 1 }"
-                @touchstart="() => { currentZoomPerSecond = zoomSpeed }" @touchend="() => { currentZoomPerSecond = 1 }">
+                @touchstart="() => { currentZoomPerSecond = zoomSpeed }" @touchend="() => { currentZoomPerSecond = 1 }"
+                title="Zoom out">
                 -
+            </button>
+            <button class="zoomControl" @click="() => snapCamera = !snapCamera"
+                :title="snapCamera ? 'Switch to orbit camera' : 'Switch to snap-to-top camera'">
+                <img v-show="snapCamera" src="./assets/snapmode.svg" height="100%" alt="Snap-to-top camera mode" />
+                <img v-show="!snapCamera" src="./assets/orbitmode.svg" height="100%" alt="Orbit camera mode" />
             </button>
 
         </div>
@@ -837,6 +835,14 @@
         padding: 20px;
         width:100%;
         box-sizing: border-box;
+    }
+
+    #sundial {
+        cursor:grab
+    }
+
+    #sundial:active {
+        cursor:grabbing
     }
 
     .horizontal_settings {
@@ -952,8 +958,9 @@
         display:flex;
         align-items: center;
         justify-content: center;
-        aspect-ratio: 1/1;
-        min-height : 25px;
+        aspect-ratio: 1 / 1;
+        max-height : 25px;
+        max-width: 25px;
         background-color:brown;
         pointer-events: all;
         margin:5px;
@@ -962,7 +969,7 @@
         font-size:15pt;
         opacity:1;
         user-select: none;
-        color:white
+        color:white;
     }
     .zoomControl:hover {
         opacity:0.5
@@ -1001,7 +1008,8 @@
     #mapImage {
         width:100%;
         aspect-ratio: 2 / 1;
-        user-select: none
+        user-select: none;
+        cursor: crosshair
     }
 
     #compassContainer {
@@ -1032,8 +1040,6 @@
         color: rgb(235, 164, 83);
         display:inline
     }
-
-
 
 
 </style>
