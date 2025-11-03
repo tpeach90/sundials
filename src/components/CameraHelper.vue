@@ -3,7 +3,7 @@
 <script lang="ts" setup>
 import { useTresContext, useLoop} from '@tresjs/core';
 import { Euler, OrthographicCamera, PerspectiveCamera, Plane, Quaternion, Vector3} from 'three';
-import { PropType, watch, defineProps, defineEmits, ref, onMounted } from 'vue';
+import { PropType, watch, defineProps, defineEmits, ref } from 'vue';
 import { OrbitControls, MapControls } from 'three-stdlib';
 import { infiniteLineIntersectWithPlane } from '@/calculations';
 
@@ -36,7 +36,7 @@ const props = defineProps({
         required: true,
         type: Object as PropType<Vector3>
     },
-    lockCamera: {
+    snapCamera: {
         required: true,
         type: Boolean as PropType<boolean>
     }
@@ -81,7 +81,7 @@ onBeforeRender(({ delta }) => {
     // adjust zoom
     if (camera.value && props.zoomPerSecond != 1) {
         const zoomThisFrame = Math.pow(props.zoomPerSecond, delta)
-        if (props.lockCamera) {
+        if (props.snapCamera) {
             let c = (camera.value as OrthographicCamera);
             if (c.isOrthographicCamera) {
                 c.zoom /= zoomThisFrame
@@ -137,14 +137,14 @@ let controls3d: OrbitControls;
 let controls2d: MapControls;
 
 // switch between cameras
-watch(() => [props.lockCamera, cameras], () => {
+watch(() => [props.snapCamera, cameras], () => {
 
-    if (controls2d) controls2d.enabled = props.lockCamera
-    if (controls3d) controls3d.enabled = !props.lockCamera
+    if (controls2d) controls2d.enabled = props.snapCamera
+    if (controls3d) controls3d.enabled = !props.snapCamera
 
     for (let cam of cameras.value) {
-        if ((props.lockCamera && (cam as OrthographicCamera).isOrthographicCamera) ||
-            (!props.lockCamera && (cam as PerspectiveCamera).isPerspectiveCamera)) {
+        if ((props.snapCamera && (cam as OrthographicCamera).isOrthographicCamera) ||
+            (!props.snapCamera && (cam as PerspectiveCamera).isPerspectiveCamera)) {
             setCameraActive(cam.uuid)
             return
         }
@@ -153,18 +153,18 @@ watch(() => [props.lockCamera, cameras], () => {
 
 // create the controls when each camera is first active
 // dont use the extend({OrbitControls}) + <TresOrbitControls/> pattern because I can't find a way to call update()
-watch(() => [renderer.value, camera.value, props.lockCamera], () => {
-    if (!controls3d && renderer.value && camera.value && !props.lockCamera) {
+watch(() => [renderer.value, camera.value, props.snapCamera], () => {
+    if (!controls3d && renderer.value && camera.value && !props.snapCamera) {
         camera.value?.position.set(7, 7, 7);
         controls3d = new OrbitControls((camera.value) as PerspectiveCamera, renderer.value.domElement)
         controls3d.target = props.target
         controls3d.enableDamping = false;
         controls3d.rotateSpeed = 0.5
         controls3d.enablePan = false
-        controls3d.enabled = !props.lockCamera
+        controls3d.enabled = !props.snapCamera
         controls3d.update()
     }
-    if (!controls2d && renderer.value && camera.value && props.lockCamera) {
+    if (!controls2d && renderer.value && camera.value && props.snapCamera) {
 
         // cam position
         const sundialNormal = new Vector3(0, 1, 0).applyEuler(props.sundialRotation)
@@ -178,9 +178,12 @@ watch(() => [renderer.value, camera.value, props.lockCamera], () => {
         controls2d = new MapControls(camera.value as OrthographicCamera, renderer.value.domElement)
         controls2d.target.set(...props.sundialOrigin.toArray())
         controls2d.enableDamping = false
+        controls2d.panSpeed = 0.79
+        // todo: try to get the screen to pan at the same speed as the mouse (it depends on window dimensions)
+        // OrthographicOrbitControls is a thing but not in the main three package I believe
         controls2d.screenSpacePanning = true
         controls2d.zoomToCursor = true
-        controls2d.enabled = props.lockCamera
+        controls2d.enabled = props.snapCamera
         controls2d.update()
 
         oldSundialRotation.value = props.sundialRotation.clone()
@@ -191,8 +194,8 @@ watch(() => [renderer.value, camera.value, props.lockCamera], () => {
 
 // move orthographic camera when sundial rotation changes
 // do this by comparing the new rotation to the old rotation
-watch(() => [props.sundialRotation, props.lockCamera], () => {
-    if (controls2d && camera.value && oldSundialRotation.value && props.lockCamera) {
+watch(() => [props.sundialRotation, props.snapCamera], () => {
+    if (controls2d && camera.value && oldSundialRotation.value && props.snapCamera) {
 
         const oldNormal = new Vector3(0, 1, 0).applyEuler(oldSundialRotation.value)
         const oldPlane = new Plane(oldNormal, 0).translate(props.sundialOrigin);

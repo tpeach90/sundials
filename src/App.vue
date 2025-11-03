@@ -60,7 +60,7 @@
     let timeAdvanceSpeed = ref<number>(0)
     let alwaysDaySkyColor = ref<boolean>(false);
     let showSundialFaceGrid = ref<boolean>(false);
-    let lockCamera = ref<boolean>(false);
+    let snapCamera = ref<boolean>(false);
 
     /**
      * readonly variables
@@ -265,6 +265,13 @@
     function mapImageClick(e:MouseEvent) {
         setLatLngFromMap(e.offsetX, e.offsetY)
     }
+    const markerPoint = ref<HTMLDivElement>()
+    watch(() => [latitude.value, longitude.value, markerPoint.value], () => {
+        // move marker point
+        if (!markerPoint.value) return
+        markerPoint.value.style.top = `${(90 - latitude.value) * 100 / 180}%`
+        markerPoint.value.style.left = `${(longitude.value + 180) * 100 / 360 }%`
+    },{immediate:true})
 
     // global mouse released fn
     onMounted(() => {
@@ -419,7 +426,8 @@
 
     <!-- setting the canvas to window-size messes up the Line2 rendering for some reason. Instead, make it fill an entire screen div. -->
     <div style="width:100%; height:100%; position: fixed; left:0; top:0">
-        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand" id="sundial"> 
+        <TresCanvas :clear-color="skyColor" shadows :shadowMapType="BasicShadowMap" render-mode="on-demand"
+            id="sundial">
 
             <TresPerspectiveCamera />
             <TresOrthographicCamera />
@@ -445,7 +453,7 @@
             <CameraHelper :x-offset="cameraXOffset" :zoom-per-second="currentZoomPerSecond"
                 @cameraQuaternionChange="q => cameraQuaternion = q.clone()" @on-advance-time="advanceTime"
                 :time-advance-speed="timeAdvanceSpeed" :target="cameraTarget" :sundialOrigin="sundialOrigin"
-                :sundialRotation="sundialRotation" :lockCamera="lockCamera" />
+                :sundialRotation="sundialRotation" :snapCamera="snapCamera" />
             <RendererHelper />
         </TresCanvas>
     </div>
@@ -497,16 +505,14 @@
                             style="grid-row: 1; grid-column: 1; margin-right:10px; height:100%; margin-top: 0px; margin-bottom:0px; touch-action: none"
                             type="range" min="-90" max="90" step="-0.1" class="slider" orient="vertical"
                             v-model="v$.latitude.$model">
-                        <!-- <div id="coordBox" style="grid-row: 1; grid-column: 2;"></div> -->
                         <div style="position:relative; aspect-ratio: 2 / 1;">
                             <img src="./assets/world-map-coordinates-correct.png" id="mapImage"
-                                alt="An outline world map, on which the user can click to set the latitude and longitude."
+                                alt="A world map"
                                 style="grid-row: 1; grid-column: 2; object-fit: contain; display:block; margin:0px; touch-action: none;"
                                 draggable="false" @mousemove="mapImageMouseMove" @mousedown="mapImageStartClicking"
                                 @touchstart="mapImageStartClicking" @touchmove="mapImageTouchMove"
                                 @click="mapImageClick" ref="mapImage">
-                            <div id="markerPoint"
-                                :style="`top:${(90 - latitude) * 100 / 180}%; left:${(longitude+180) * 100 / 360}%`">
+                            <div id="markerPoint" ref="markerPoint">
                             </div>
                         </div>
 
@@ -617,7 +623,7 @@
                         <label class="fieldTitle" style="margin-top:4px">
                             Other
                             <a class="sidebar_link" href="https://www.bcgnomonics.com/types-of-hours"
-                                title="Explanation on bcgnomonics.com" target="_blank">(?)</a>
+                                title="Explanation on bcgnomonics.com" target="_blank">(? - bcgnomonics.com)</a>
                         </label>
                         <div class="checkboxSetting">
                             <input type="radio" id="pstBabylonian" value="babylonian"
@@ -704,7 +710,7 @@
 
         <!-- top right controls -->
         <div id="topRightControls">
-            <div id="compassContainer" title="Compass">
+            <div id="compassContainer" title="North direction">
                 <TresCanvas render-mode="on-demand">
                     <TresAmbientLight color="#FFFFFF" :intensity="2" />
                     <TresOrthographicCamera :position="compassCameraPosition" :lookAt="compassCameraLookAt"
@@ -713,11 +719,6 @@
                 </TresCanvas>
                 <div style="position:absolute; width:100%; height:100%; top:0; left:0" title="North"></div>
             </div>
-            <button class="zoomControl" @click="() => lockCamera = !lockCamera"
-                :title="lockCamera ? 'Unlock camera' : 'Lock camera to sundial face'">
-                <img v-show="lockCamera" src="./assets/cameralocked.svg" height="100%" alt="Camera locked"/>
-                <img v-show="!lockCamera" src="./assets/cameraunlocked.svg" height="100%" alt="Camera unlocked"/>
-            </button>
             <button class="zoomControl" @keydown.enter="() => { currentZoomPerSecond = 1 / zoomSpeed }"
                 @keyup.enter="() => { currentZoomPerSecond = 1 }"
                 @mousedown="() => { currentZoomPerSecond = 1 / zoomSpeed }"
@@ -733,6 +734,11 @@
                 @touchstart="() => { currentZoomPerSecond = zoomSpeed }" @touchend="() => { currentZoomPerSecond = 1 }"
                 title="Zoom out">
                 -
+            </button>
+            <button class="zoomControl" @click="() => snapCamera = !snapCamera"
+                :title="snapCamera ? 'Switch to orbit camera' : 'Switch to snap-to-top camera'">
+                <img v-show="snapCamera" src="./assets/snapmode.svg" height="100%" alt="Snap-to-top camera mode" />
+                <img v-show="!snapCamera" src="./assets/orbitmode.svg" height="100%" alt="Orbit camera mode" />
             </button>
 
         </div>
@@ -840,6 +846,10 @@
 
     #sundial {
         cursor:grab
+    }
+
+    #sundial:active {
+        cursor:grabbing
     }
 
     .horizontal_settings {
