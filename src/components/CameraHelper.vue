@@ -183,6 +183,7 @@ watch(() => [renderer.value, camera.value, props.snapCamera], () => {
         // OrthographicOrbitControls is a thing but not in the main three package I believe
         controls2d.screenSpacePanning = true
         controls2d.zoomToCursor = true
+        controls2d.rotateSpeed = 0
         controls2d.enabled = props.snapCamera
         controls2d.update()
 

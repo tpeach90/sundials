@@ -959,8 +959,8 @@
         align-items: center;
         justify-content: center;
         aspect-ratio: 1 / 1;
-        max-height : 25px;
-        max-width: 25px;
+        height : 25px;
+        width: 25px;
         background-color:brown;
         pointer-events: all;
         margin:5px;
