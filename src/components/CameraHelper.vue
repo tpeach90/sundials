@@ -88,7 +88,9 @@ onBeforeRender(({ delta }) => {
                 controls2d.update()
             }
         } else {
-            camera.value.position.multiplyScalar(zoomThisFrame)
+            const targetToCam = camera.value.position.clone().sub(props.target)
+            const newCamPos = targetToCam.clone().multiplyScalar(zoomThisFrame).add(props.target)
+            camera.value.position.set(...newCamPos.toArray())
         }
     }
 
