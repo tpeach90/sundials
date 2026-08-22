@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { GLTFModel } from '@tresjs/cientos';
-import {defineProps, PropType, computed} from 'vue';
+import {computed} from 'vue';
+import type { PropType } from 'vue';
 import {Euler, Quaternion} from 'three';
 
 /**

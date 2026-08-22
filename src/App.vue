@@ -527,7 +527,7 @@
                 <div class="setting" data-v-walkthrough="sundial-type">
                     <div class="checkboxSetting" style="display:flex; flex-direction:row; align-items:center">
                         <label for="dialAndGnomon" style="margin-right:10px">
-                            <img src="./assets/sundialicon.svg" style="max-width:50px" alt="Traditional sundial icon" />
+                            <img src="./assets/sundialicon.svg" style="width:50px; aspect-ratio:1/1" alt="Traditional sundial icon" />
                         </label>
                         <div>
                             <input type="radio" id="dialAndGnomon" value="dialAndGnomon" v-model="sundialType">
@@ -538,7 +538,7 @@
                     </div>
                     <div class="checkboxSetting" style="display:flex; flex-direction:row; align-items:center">
                         <label for="pointSundial" style="margin-right:10px">
-                            <img src="./assets/pointshadowtraceicon.svg" style="max-width:50px"
+                            <img src="./assets/pointshadowtraceicon.svg" style="width:50px; aspect-ratio:1/1"
                                 alt="Point shadow trace icon" />
                         </label>
                         <div>

@@ -3,7 +3,8 @@
 <script lang="ts" setup>
 import { useTresContext, useLoop} from '@tresjs/core';
 import { Euler, OrthographicCamera, PerspectiveCamera, Plane, Quaternion, Vector3} from 'three';
-import { PropType, watch, defineProps, defineEmits, ref } from 'vue';
+import { watch, ref } from 'vue';
+import type { PropType } from 'vue';
 import { OrbitControls, MapControls } from 'three-stdlib';
 import { infiniteLineIntersectWithPlane } from '@/calculations';
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Color, Euler, Vector3 } from 'three';
-import { PropType, computed, defineProps } from 'vue';
+import { computed } from 'vue';
+import type { PropType } from 'vue';
 
 const props = defineProps({
     sundialRotation: {

@@ -15,8 +15,6 @@ import { computed, onUnmounted, shallowRef, watch } from 'vue'
 import type { TresColor } from '@tresjs/core'
 import type { Color } from 'three'
 
-import { withDefaults, defineProps, defineExpose } from "vue";
-
 type Points = (Vector3 | Vector2 | [number, number, number] | [number, number] | number)[]
 type VertexColors = Array<TresColor>
 export interface LineProps {

@@ -2,7 +2,8 @@
 
 <script setup lang="ts">
 
-import { PropType, computed, defineProps, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import type { PropType } from 'vue';
 import { Euler, Matrix4, Plane, Ray, Vector3 } from 'three';
 import Line2Clipped from './Line2FromCientosPackageAndItsTheSameButYouCanAlsoUseClippingPlanesSoItsNot.vue';
 import { Line2 } from "@tresjs/cientos";

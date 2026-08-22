@@ -3,7 +3,8 @@
 <script setup lang="ts">
 
 import { Text3D } from '@tresjs/cientos';
-import { PropType, computed, defineProps } from 'vue'
+import { computed } from 'vue'
+import type { PropType } from 'vue';
 import { Vector3, Vector3Tuple } from "three";
 const props = defineProps({
     text: {

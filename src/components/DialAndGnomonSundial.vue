@@ -4,7 +4,8 @@
 
 
 import SundialLetter from './SundialLetter.vue';
-import { PropType, computed, defineProps, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import type { PropType } from 'vue';
 import { Euler, Matrix4, Plane, Vector3 } from 'three';
 import { assertUnreachable, calculateShadowDirection, infiniteLineIntersectWithPlaneWithDir, infiniteLineIntersectWithSphereParameters, sunPosAtEquinox, vertIntersectPlanes } from '@/calculations';
 import { Line2 } from '@tresjs/cientos'
